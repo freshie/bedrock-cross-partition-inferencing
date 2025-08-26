@@ -1,0 +1,52 @@
+Delivering national digital identity systems with AWS Outposts
+by Vineet Nair, Jasper Riane Mendoza, and Sumeeth Siriyur on 21 AUG 2025 in AWS Outposts, Best Practices, Government, Public Sector, Public Sector Partners Permalink  Share
+AWS branded background with text Delivering national digital identity systems with AWS Outposts"
+
+Digital public infrastructure (DPI) is the foundation of modern government service delivery, and an inclusive digital economy. Digital identity is one of the foundational pillars of DPI, which if widely adopted, can deliver significant economic impact by streamlining services and enable financial inclusion for previously underserved populations. One analysis by Harvard Business Review estimates that robust digital identity implementation can drive GDP growth by 3–13 percent in emerging economies, with an average improvement of 6 percent. For government administrators, these digital identity systems deliver tangible benefits through reduced costs and enhanced fraud prevention while democratizing access to essential healthcare services, social welfare, and education across both urban and remote regions. Additionally, this digital foundation positions public sector organizations for future transformation initiatives
+
+Digital identity systems present unique implementation challenges because they manage highly sensitive citizen information, from biometric data and demographic details to authentication credentials. These systems require reliable security measures and strict data governance frameworks to protect citizen privacy while enabling secure service delivery. Governments often need to comply with frameworks or legislation, including mandates that data remain within national borders or specific government facilities. This creates a challenge for governments looking to use the scale, security, and resilience of hyperscale cloud capabilities for their digital identity systems.
+
+Delivering digital identity systems at the edge
+In such scenarios, governments can use hybrid cloud solutions such as AWS Outposts to store and process citizen data within their facilities while accessing advanced cloud features for scalability and security. AWS Outposts extends Amazon Web Services (AWS) infrastructure and built-in services to virtually any on-premises facility, delivering consistent hybrid cloud operations while meeting strict data residency and latency requirements. It also provides access to services running on the parent AWS Region while maintaining local processing for identity verification workflows, biometric matching, and data storage.
+
+Satellite Resiliency for AWS Outposts (SRAO) can provide an additional layer of resiliency for critical workloads, enabling them to automatically fail over to Low Earth Orbit (LEO) satellite connectivity during terrestrial network disruptions. This is an important consideration for governments serving remote populations or operating in areas prone to connectivity challenges. It enables resilience and availability of essential services such as digital identity while still meeting the data residency obligations.
+
+MOSIP’s digital identity implementation at the edge
+One example of digital identity DPI is Modular Open Source Identity Platform (MOSIP), designed to help countries build and customize their own national digital identity systems. It features a modular design incorporating registration, authentication, and identity management services that integrates seamlessly with the capabilities of AWS Outposts.
+
+MOSIP powers digital identity systems in Philippines, Ethiopia, and Zambia while engaging with 26 countries across Asia Pacific, Africa, Latin America, and the Caribbean. This widespread adoption demonstrates its effectiveness as a trusted open source solution. The platform provides more than 20 modules, including registration for demographic and biometric data, data quality verification and cross-referencing for uniqueness, authentication through APIs, and resident services for ID management. The system prioritizes security of data and identity, ensuring solutions are human-centric and inclusive.
+
+The architecture demonstrates how MOSIP’s infrastructure is deployed on AWS Outposts while maintaining seamless integration with the AWS Region—delivering a scalable, secure, and highly resilient digital identity system.
+
+Architecture overview
+The following diagram illustrates the MOSIP solution architecture on AWS Outposts:
+
+
+Figure 1: Architectural diagram of the solution showing the components
+
+The following steps describe the architecture in more detail:
+
+Citizens access the system through a public-facing portal hosted on AWS. Amazon Route 53 manages Domain Name System (DNS) resolution, while Amazon CloudFront delivers content with Web Application Firewall (WAF) protection providing security at the edge.
+The setup includes two Amazon Elastic Kubernetes Service (EKS) clusters running inside separate Virtual Private Clouds (VPCs), one for MOSIP components and another for cluster management and integrations using Rancher and Keycloak. These VPCs are connected through peering, with load balancers distributing traffic across AWS Outposts in the customer’s data center infrastructure.
+AWS Direct Connect serves as the primary connectivity path between the AWS Region and the on-premises facility hosting AWS Outposts, while SRAO provides resilient backup connectivity.
+Within the on-premises customer environment, AWS Outpost hosts the MOSIP EKS cluster running MOSIP modules, such as Kernel, PreReg, and IDRepo. It also hosts the management EKS cluster that runs Rancher and Keycloak modules, which support identity and access management and the overall management of the EKS clusters.
+PostgreSQL databases deployed on AWS Outposts store critical identity data to comply with data residency requirements.
+Traffic is managed using Istio ingress controllers, and a local gateway enables communication with internal data center systems.
+Administrators use secure VPC connections to oversee the system’s operation, maintaining control of the overall solution.
+Benefits of digital identity implementation at the edge
+By implementing digital identity systems with AWS Outposts, governments can realize several key benefits. The solution delivers reliable digital identity systems through the proven infrastructure of AWS. The architecture enables consistent service delivery through secure VPC configurations and integrated load balancing capabilities. This foundation means that governments can process citizen data securely while maintaining high availability for national-scale identity systems.
+
+The solution features built-in redundancy and automated failover capabilities to enable continuous service availability. This design enables governments to maintain critical identity services across diverse geographical locations, including remote areas. With SRAO integration, the system helps maintain highly resilient delivery of essential government services during terrestrial network outages, natural disasters, or infrastructure challenges—supporting consistent access to digital identity services.
+
+AWS Outposts simplifies operations by providing a unified management experience across cloud and on-premises environments. Government IT teams can use familiar AWS tools, APIs, and services while maintaining complete control over sensitive citizen data. This consistent approach streamlines monitoring, troubleshooting, and security compliance across all workloads.
+
+Governments can use the solution to innovate and modernize their digital identity services by utilizing AWS advanced cloud capabilities within their own facilities. The solution allows for integration with emerging features and services in AWS Regions that can deliver an improved citizen experience.
+
+Conclusion
+As governments worldwide seek to modernize their services, secure and scalable digital identity systems are becoming essential infrastructure. Through a combination of AWS Outposts, digital identity solutions like MOSIP, and innovative architectures that couple cloud capabilities with data residency requirements, governments can build digital identity systems that are reliable, resilient, and ready for the future.
+
+If you’d like to learn more, hear how other governments are harnessing DPI, or discuss ways AWS can support you to get started, contact our specialist DPI team at digitalpublicinfrastructure@amazon.com. To speak to an AWS Outposts expert and learn more, visit this webpage.
+
+The SRAO solution is delivered and managed by AWS Partners for a one-stop-shop customer experience, from purchase to operation, optimization, and maintenance. For more information, contact Satelliteresiliencyforoutposts@amazon.com.
+
+TAGS: AWS Outposts, AWS Public Sector, AWS Public Sector Partners, best practices, government

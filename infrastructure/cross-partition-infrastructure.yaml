@@ -1,0 +1,349 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Cross-Partition Inference Infrastructure - Simplified MVP'
+
+Parameters:
+  CommercialCredentialsSecretName:
+    Type: String
+    Default: 'cross-partition-commercial-creds'
+    Description: 'Name of the Secrets Manager secret containing commercial AWS credentials'
+  
+  RequestLogTableName:
+    Type: String
+    Default: 'cross-partition-requests'
+    Description: 'Name of the DynamoDB table for request logging'
+
+Resources:
+  # DynamoDB table for request logging
+  RequestLogTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref RequestLogTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: requestId
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: requestId
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Purpose
+          Value: CrossPartitionInference
+        - Key: Environment
+          Value: MVP
+
+  # Secrets Manager secret for commercial Bedrock API key
+  CommercialCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Ref CommercialCredentialsSecretName
+      Description: 'Commercial Bedrock API key for cross-partition access'
+      SecretString: !Sub |
+        {
+          "bedrock_api_key": "REPLACE_WITH_ACTUAL_BEDROCK_API_KEY",
+          "region": "us-east-1"
+        }
+      Tags:
+        - Key: Purpose
+          Value: CrossPartitionInference
+        - Key: Environment
+          Value: MVP
+
+  # IAM role for Lambda execution
+  CrossPartitionLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CrossPartitionLambdaExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws-us-gov:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CrossPartitionLambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Secrets Manager access
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref CommercialCredentialsSecret
+              # DynamoDB access
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                Resource: !GetAtt RequestLogTable.Arn
+              # CloudWatch Logs (additional permissions)
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws-us-gov:logs:${AWS::Region}:${AWS::AccountId}:*'
+      Tags:
+        - Key: Purpose
+          Value: CrossPartitionInference
+        - Key: Environment
+          Value: MVP
+
+  # Lambda function
+  CrossPartitionLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: CrossPartitionInferenceProxy
+      Runtime: python3.11
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt CrossPartitionLambdaRole.Arn
+      Code:
+        ZipFile: |
+          # Placeholder code - replace with actual deployment package
+          import json
+          import os
+          from datetime import datetime
+          
+          def lambda_handler(event, context):
+              # Get request info
+              source_ip = event.get('requestContext', {}).get('identity', {}).get('sourceIp', 'unknown')
+              user_agent = event.get('headers', {}).get('User-Agent', 'unknown')
+              request_id = context.aws_request_id
+              
+              # Return information about the request routing
+              response_data = {
+                  'message': 'Cross-partition inference proxy',
+                  'routing': {
+                      'source': 'AWS GovCloud (us-gov-west-1)',
+                      'destination': 'AWS Commercial (us-east-1)',
+                      'service': 'Amazon Bedrock'
+                  },
+                  'request_info': {
+                      'request_id': request_id,
+                      'source_ip': source_ip,
+                      'user_agent': user_agent,
+                      'timestamp': datetime.utcnow().isoformat() + 'Z',
+                      'region': os.environ.get('AWS_REGION', 'us-gov-west-1')
+                  },
+                  'status': 'ready_for_deployment'
+              }
+              
+              return {
+                  'statusCode': 200,
+                  'headers': {
+                      'Content-Type': 'application/json',
+                      'Access-Control-Allow-Origin': '*'
+                  },
+                  'body': json.dumps(response_data, indent=2)
+              }
+      Environment:
+        Variables:
+          COMMERCIAL_CREDENTIALS_SECRET: !Ref CommercialCredentialsSecretName
+          REQUEST_LOG_TABLE: !Ref RequestLogTableName
+      Timeout: 30
+      MemorySize: 256
+      Tags:
+        - Key: Purpose
+          Value: CrossPartitionInference
+        - Key: Environment
+          Value: MVP
+
+  # Lambda permission for API Gateway
+  LambdaApiGatewayPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CrossPartitionLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws-us-gov:execute-api:${AWS::Region}:${AWS::AccountId}:${CrossPartitionApi}/*/*'
+
+  # API Gateway REST API
+  CrossPartitionApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: CrossPartitionInferenceAPI
+      Description: 'API for cross-partition Bedrock inference requests'
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Policy:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: execute-api:Invoke
+            Resource: '*'
+      Tags:
+        - Key: Purpose
+          Value: CrossPartitionInference
+        - Key: Environment
+          Value: MVP
+
+  # API Gateway resource for bedrock endpoints
+  BedrockResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref CrossPartitionApi
+      ParentId: !GetAtt CrossPartitionApi.RootResourceId
+      PathPart: bedrock
+
+  # API Gateway resource for invoke-model
+  InvokeModelResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref CrossPartitionApi
+      ParentId: !Ref BedrockResource
+      PathPart: invoke-model
+
+  # API Gateway resource for models
+  ModelsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref CrossPartitionApi
+      ParentId: !Ref BedrockResource
+      PathPart: models
+
+  # API Gateway method for POST /bedrock/invoke-model
+  InvokeModelMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref CrossPartitionApi
+      ResourceId: !Ref InvokeModelResource
+      HttpMethod: POST
+      AuthorizationType: NONE  # Simplified for MVP
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws-us-gov:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CrossPartitionLambda.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+
+  # GET method to show routing info
+  InvokeModelGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref CrossPartitionApi
+      ResourceId: !Ref InvokeModelResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws-us-gov:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CrossPartitionLambda.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+
+  # OPTIONS method for CORS
+  InvokeModelOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref CrossPartitionApi
+      ResourceId: !Ref InvokeModelResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+
+  # API Gateway method for GET /bedrock/models
+  ModelsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref CrossPartitionApi
+      ResourceId: !Ref ModelsResource
+      HttpMethod: GET
+      AuthorizationType: AWS_IAM
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws-us-gov:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CrossPartitionLambda.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+
+  # OPTIONS method for models CORS
+  ModelsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref CrossPartitionApi
+      ResourceId: !Ref ModelsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+
+  # API Gateway deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - InvokeModelMethod
+      - InvokeModelGetMethod
+      - InvokeModelOptionsMethod
+      - ModelsMethod
+      - ModelsOptionsMethod
+    Properties:
+      RestApiId: !Ref CrossPartitionApi
+      StageName: v1
+
+Outputs:
+  ApiGatewayUrl:
+    Description: 'API Gateway endpoint URL'
+    Value: !Sub 'https://${CrossPartitionApi}.execute-api.${AWS::Region}.amazonaws.com/v1'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiUrl'
+
+  BedrockEndpoint:
+    Description: 'Bedrock proxy endpoint'
+    Value: !Sub 'https://${CrossPartitionApi}.execute-api.${AWS::Region}.amazonaws.com/v1/bedrock/invoke-model'
+    Export:
+      Name: !Sub '${AWS::StackName}-BedrockEndpoint'
+
+  ModelsEndpoint:
+    Description: 'Bedrock models discovery endpoint'
+    Value: !Sub 'https://${CrossPartitionApi}.execute-api.${AWS::Region}.amazonaws.com/v1/bedrock/models'
+    Export:
+      Name: !Sub '${AWS::StackName}-ModelsEndpoint'
+
+  LambdaFunctionName:
+    Description: 'Lambda function name for code deployment'
+    Value: !Ref CrossPartitionLambda
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaFunction'
+
+  SecretsManagerSecretName:
+    Description: 'Secrets Manager secret name for commercial credentials'
+    Value: !Ref CommercialCredentialsSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-SecretName'
+
+  DynamoDBTableName:
+    Description: 'DynamoDB table name for request logs'
+    Value: !Ref RequestLogTable
+    Export:
+      Name: !Sub '${AWS::StackName}-TableName'
+
+  TestCommand:
+    Description: 'Command to test the API'
+    Value: !Sub 'curl -X GET https://${CrossPartitionApi}.execute-api.${AWS::Region}.amazonaws.com/v1/bedrock/invoke-model'

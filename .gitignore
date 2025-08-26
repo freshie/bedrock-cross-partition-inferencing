@@ -1,0 +1,56 @@
+# AWS Credentials and Account Information
+.aws/
+aws-credentials*
+*credentials*
+*secrets*
+*.pem
+*.key
+
+# AWS Config Files
+aws-config*
+*config.json
+*config.yaml
+*config.yml
+
+# Environment Files
+.env
+.env.*
+*.env
+
+# AWS Account Information
+account-info*
+*account*
+*profile-info*
+
+# Terraform State Files (if using Terraform)
+*.tfstate
+*.tfstate.*
+.terraform/
+terraform.tfvars
+*.auto.tfvars
+
+# CloudFormation Templates with sensitive data
+*-secrets.yaml
+*-secrets.yml
+*-credentials.yaml
+*-credentials.yml
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
