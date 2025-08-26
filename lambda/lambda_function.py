@@ -157,76 +157,73 @@ def get_commercial_credentials():
         logger.error(f"Invalid JSON in secrets: {str(e)}")
         raise Exception("Invalid credential format in Secrets Manager")
 
-def decode_bedrock_api_key(api_key):
+def create_bedrock_headers(api_key):
     """
-    Decode Bedrock API key to extract access key ID and secret access key
+    Create headers for Bedrock API requests using the API key directly
     """
     try:
-        import base64
-        
-        # Decode the base64 API key
-        decoded_key = base64.b64decode(api_key).decode('utf-8')
-        
-        # Split into access key ID and secret access key
-        # Format: AccessKeyId:SecretAccessKey
-        parts = decoded_key.split(':')
-        if len(parts) != 2:
-            raise ValueError("Invalid API key format")
-        
-        return {
-            'access_key_id': parts[0],
-            'secret_access_key': parts[1]
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f"Bearer {api_key}"
         }
         
+        return headers
+        
     except Exception as e:
-        logger.error(f"Failed to decode Bedrock API key: {str(e)}")
-        raise Exception("Unable to decode Bedrock API key")
+        logger.error(f"Failed to create Bedrock headers: {str(e)}")
+        raise Exception("Unable to create Bedrock headers")
 
 def forward_to_bedrock(commercial_creds, request_data):
     """
-    Forward the request to commercial Bedrock using boto3 with decoded API key credentials
+    Forward the request to commercial Bedrock using HTTP API with Bearer token
     """
     try:
-        # Decode the Bedrock API key
-        decoded_creds = decode_bedrock_api_key(commercial_creds['bedrock_api_key'])
+        # Create headers with the API key
+        headers = create_bedrock_headers(commercial_creds['bedrock_api_key'])
         
-        # Create a boto3 client for Bedrock Runtime in commercial partition
-        bedrock_client = boto3.client(
-            'bedrock-runtime',
-            region_name='us-east-1',
-            aws_access_key_id=decoded_creds['access_key_id'],
-            aws_secret_access_key=decoded_creds['secret_access_key']
+        # Construct the Bedrock API URL
+        model_id = request_data['modelId']
+        url = f"https://bedrock-runtime.us-east-1.amazonaws.com/model/{model_id}/invoke"
+        
+        # Make the HTTP request to Bedrock
+        response = requests.post(
+            url,
+            headers=headers,
+            data=request_data['body'],
+            timeout=30
         )
         
-        # Make the request to Bedrock
-        response = bedrock_client.invoke_model(
-            modelId=request_data['modelId'],
-            contentType=request_data['contentType'],
-            accept=request_data['accept'],
-            body=request_data['body']
-        )
-        
-        # Read the response body
-        response_body = response['body'].read()
+        # Check if request was successful
+        response.raise_for_status()
         
         # Return the response data
         return {
-            'body': response_body.decode('utf-8'),
-            'contentType': response['contentType']
+            'body': response.text,
+            'contentType': response.headers.get('content-type', 'application/json')
         }
         
-    except Exception as e:
-        logger.error(f"Bedrock API error: {str(e)}")
+    except requests.exceptions.HTTPError as e:
+        status_code = e.response.status_code
+        error_message = e.response.text
+        logger.error(f"Bedrock API HTTP error: {status_code} - {error_message}")
         
-        # Handle specific boto3 exceptions
-        if 'AccessDeniedException' in str(e):
-            raise Exception(f"Access denied to commercial Bedrock: {str(e)}")
-        elif 'ValidationException' in str(e):
-            raise Exception(f"Invalid request parameters: {str(e)}")
-        elif 'ThrottlingException' in str(e):
-            raise Exception(f"Request throttled by commercial Bedrock: {str(e)}")
+        # Re-raise with more specific error information
+        if status_code == 400:
+            raise Exception(f"Invalid request parameters: {error_message}")
+        elif status_code == 403:
+            raise Exception(f"Access denied to commercial Bedrock: {error_message}")
+        elif status_code == 429:
+            raise Exception(f"Request throttled by commercial Bedrock: {error_message}")
         else:
-            raise Exception(f"Failed to call commercial Bedrock: {str(e)}")
+            raise Exception(f"Commercial Bedrock error ({status_code}): {error_message}")
+    
+    except requests.exceptions.RequestException as e:
+        logger.error(f"HTTP request error: {str(e)}")
+        raise Exception(f"Failed to call commercial Bedrock: {str(e)}")
+    
+    except Exception as e:
+        logger.error(f"Unexpected error calling Bedrock: {str(e)}")
+        raise Exception(f"Failed to call commercial Bedrock: {str(e)}")
 
 def log_request(request_id, request_data, response, latency, success, error_message=None):
     """
@@ -275,22 +272,16 @@ def get_available_models(event, context):
         # Get commercial Bedrock API key
         commercial_creds = get_commercial_credentials()
         
-        # Decode the Bedrock API key
-        decoded_creds = decode_bedrock_api_key(commercial_creds['bedrock_api_key'])
+        # Create headers with the API key
+        headers = create_bedrock_headers(commercial_creds['bedrock_api_key'])
         
-        # Create a boto3 client for Bedrock in commercial partition
-        bedrock_client = boto3.client(
-            'bedrock',
-            region_name='us-east-1',
-            aws_access_key_id=decoded_creds['access_key_id'],
-            aws_secret_access_key=decoded_creds['secret_access_key']
-        )
-        
-        # List foundation models
-        response = bedrock_client.list_foundation_models()
+        # Make HTTP request to list foundation models
+        url = "https://bedrock.us-east-1.amazonaws.com/foundation-models"
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
         
         # Parse the response
-        response_data = response
+        response_data = response.json()
         
         # Process the models list
         models = []
