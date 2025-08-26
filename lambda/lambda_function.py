@@ -181,15 +181,30 @@ def forward_to_bedrock(commercial_creds, request_data):
         # Create headers with the API key
         headers = create_bedrock_headers(commercial_creds['bedrock_api_key'])
         
-        # Construct the Bedrock API URL
+        # Determine the correct endpoint based on model type
         model_id = request_data['modelId']
-        url = f"https://bedrock-runtime.us-east-1.amazonaws.com/model/{model_id}/invoke"
+        
+        # Nova models use the converse API, others use invoke
+        if 'nova' in model_id.lower():
+            endpoint = 'converse'
+        else:
+            endpoint = 'invoke'
+            
+        url = f"https://bedrock-runtime.us-east-1.amazonaws.com/model/{model_id}/{endpoint}"
+        
+        # Convert body to JSON if it's a string
+        body_data = request_data['body']
+        if isinstance(body_data, str):
+            try:
+                body_data = json.loads(body_data)
+            except json.JSONDecodeError:
+                pass  # Keep as string if not valid JSON
         
         # Make the HTTP request to Bedrock
         response = requests.post(
             url,
             headers=headers,
-            data=request_data['body'],
+            json=body_data,  # Use json parameter instead of data for proper JSON encoding
             timeout=30
         )
         

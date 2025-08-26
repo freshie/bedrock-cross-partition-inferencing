@@ -1,52 +1,50 @@
 #!/bin/bash
 
-# Test script for the Bedrock invoke-model endpoint
-# This tests the cross-partition inference proxy
+# Test script for the Bedrock invoke-model endpoint using AWS CLI
+# This tests the cross-partition inference proxy with proper authentication
 
 set -e
 
-API_BASE_URL="https://REDACTED_ENDPOINT.execute-api.us-gov-west-1.amazonaws.com/v1"
-INVOKE_ENDPOINT="${API_BASE_URL}/bedrock/invoke-model"
-
 echo "🧪 Testing Bedrock Invoke Model Endpoint"
 echo "========================================"
-echo "Endpoint: ${INVOKE_ENDPOINT}"
+echo "Using AWS CLI test-invoke-method for authentication"
 echo ""
 
-# Test 1: Simple text generation with Claude
-echo "📝 Test 1: Text generation with Claude 3.5 Sonnet"
-echo "---------------------------------------------------"
+# Test 1: Simple text generation with Titan Text Express (should be available)
+echo "📝 Test 1: Text generation with Titan Text Express"
+echo "-------------------------------------------------"
 
-PAYLOAD='{
-  "modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+PAYLOAD_TITAN='{
+  "modelId": "amazon.titan-text-express-v1",
   "contentType": "application/json",
   "accept": "application/json",
   "body": {
-    "anthropic_version": "bedrock-2023-05-31",
-    "max_tokens": 100,
-    "messages": [
-      {
-        "role": "user",
-        "content": "Hello! Can you tell me a short joke?"
-      }
-    ]
+    "inputText": "What is the capital of France? Please answer in one sentence.",
+    "textGenerationConfig": {
+      "maxTokenCount": 50,
+      "temperature": 0.7
+    }
   }
 }'
 
 echo "Request payload:"
-echo "$PAYLOAD" | jq .
+echo "$PAYLOAD_TITAN" | jq .
 echo ""
 
-echo "Making request..."
-RESPONSE=$(curl -s -X POST "$INVOKE_ENDPOINT" \
-  -H "Content-Type: application/json" \
-  -d "$PAYLOAD")
+echo "Making request via AWS CLI..."
+RESPONSE_TITAN=$(aws apigateway test-invoke-method \
+  --rest-api-id REDACTED_ENDPOINT \
+  --resource-id ze3g42 \
+  --http-method POST \
+  --profile govcloud \
+  --region us-gov-west-1 \
+  --body "$PAYLOAD_TITAN")
 
 echo "Response:"
-echo "$RESPONSE" | jq .
+echo "$RESPONSE_TITAN" | jq .
 echo ""
 
-# Test 2: Simple text generation with Amazon Nova
+# Test 2: Simple text generation with Amazon Nova Micro
 echo "📝 Test 2: Text generation with Amazon Nova Micro"
 echo "------------------------------------------------"
 
@@ -76,10 +74,14 @@ echo "Request payload:"
 echo "$PAYLOAD_NOVA" | jq .
 echo ""
 
-echo "Making request..."
-RESPONSE_NOVA=$(curl -s -X POST "$INVOKE_ENDPOINT" \
-  -H "Content-Type: application/json" \
-  -d "$PAYLOAD_NOVA")
+echo "Making request via AWS CLI..."
+RESPONSE_NOVA=$(aws apigateway test-invoke-method \
+  --rest-api-id REDACTED_ENDPOINT \
+  --resource-id ze3g42 \
+  --http-method POST \
+  --profile govcloud \
+  --region us-gov-west-1 \
+  --body "$PAYLOAD_NOVA")
 
 echo "Response:"
 echo "$RESPONSE_NOVA" | jq .
