@@ -91,7 +91,7 @@ INFERENCE_RESPONSE=$(aws apigateway test-invoke-method \
         --query 'items[?pathPart==`invoke-model`].id' \
         --output text) \
     --http-method POST \
-    --body '{"modelId":"amazon.nova-micro-v1:0","contentType":"application/json","accept":"application/json","body":"{\"messages\":[{\"role\":\"user\",\"content\":\"Hello from GovCloud!\"}],\"max_tokens\":50}"}' \
+    --body '{"modelId":"anthropic.claude-3-5-sonnet-20241022-v2:0","contentType":"application/json","accept":"application/json","body":"{\"anthropic_version\":\"bedrock-2023-05-31\",\"max_tokens\":50,\"messages\":[{\"role\":\"user\",\"content\":\"Hello from GovCloud!\"}]}"}' \
     --profile $PROFILE \
     --region $REGION 2>/dev/null)
 
@@ -122,12 +122,5 @@ echo "4. Re-run tests to verify full functionality"
 echo ""
 echo -e "${GREEN}🎉 System architecture is working perfectly!${NC}"
 
-# Reset to placeholder to avoid confusion
-echo -e "${YELLOW}📝 Resetting secret to placeholder...${NC}"
-aws secretsmanager update-secret \
-    --secret-id cross-partition-commercial-creds \
-    --secret-string '{"bedrock_api_key":"PLACEHOLDER_BEDROCK_API_KEY","region":"us-east-1"}' \
-    --profile $PROFILE \
-    --region $REGION > /dev/null
-
-echo -e "${GREEN}✅ Secret reset to placeholder${NC}"
+# Keep the working demo API key
+echo -e "${GREEN}✅ Demo API key preserved for future tests${NC}"

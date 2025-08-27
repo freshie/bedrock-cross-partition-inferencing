@@ -1,0 +1,68 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "BedrockModelAccess",
+            "Effect": "Allow",
+            "Action": [
+                "bedrock:ListFoundationModels",
+                "bedrock:GetFoundationModel",
+                "bedrock:ListModelCustomizationJobs",
+                "bedrock:GetModelCustomizationJob"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "BedrockInference",
+            "Effect": "Allow",
+            "Action": [
+                "bedrock:InvokeModel",
+                "bedrock:InvokeModelWithResponseStream"
+            ],
+            "Resource": [
+                "arn:aws:bedrock:*::foundation-model/*",
+                "arn:aws:bedrock:*:*:custom-model/*",
+                "arn:aws:bedrock:*:*:inference-profile/*"
+            ]
+        },
+        {
+            "Sid": "BedrockInferenceProfiles",
+            "Effect": "Allow",
+            "Action": [
+                "bedrock:CreateInferenceProfile",
+                "bedrock:GetInferenceProfile",
+                "bedrock:ListInferenceProfiles",
+                "bedrock:DeleteInferenceProfile",
+                "bedrock:UpdateInferenceProfile",
+                "bedrock:TagResource",
+                "bedrock:UntagResource",
+                "bedrock:ListTagsForResource"
+            ],
+            "Resource": [
+                "arn:aws:bedrock:*:*:inference-profile/*",
+                "arn:aws:bedrock:*::foundation-model/*"
+            ]
+        },
+        {
+            "Sid": "BedrockModelInvocation",
+            "Effect": "Allow",
+            "Action": [
+                "bedrock:Converse",
+                "bedrock:ConverseStream"
+            ],
+            "Resource": [
+                "arn:aws:bedrock:*::foundation-model/*",
+                "arn:aws:bedrock:*:*:inference-profile/*"
+            ]
+        },
+        {
+            "Sid": "BedrockKnowledgeBase",
+            "Effect": "Allow",
+            "Action": [
+                "bedrock:Retrieve",
+                "bedrock:RetrieveAndGenerate"
+            ],
+            "Resource": "*"
+        }
+    ]
+}

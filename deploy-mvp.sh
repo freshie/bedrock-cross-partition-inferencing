@@ -90,20 +90,29 @@ SECRET_NAME=$(aws cloudformation describe-stacks \
     --output text)
 
 echo "Secret Name: $SECRET_NAME"
-echo ""
-echo -e "${YELLOW}⚠️  You need to update the commercial AWS credentials in Secrets Manager.${NC}"
-echo ""
-echo "Current placeholder credentials need to be replaced with actual commercial credentials."
-echo ""
-echo "Command to update credentials:"
-echo -e "${BLUE}aws secretsmanager update-secret \\${NC}"
-echo -e "${BLUE}    --secret-id $SECRET_NAME \\${NC}"
-echo -e "${BLUE}    --secret-string '{\"bedrock_api_key\":\"YOUR_BEDROCK_API_KEY\",\"region\":\"us-east-1\"}' \\${NC}"
-echo -e "${BLUE}    --profile $PROFILE \\${NC}"
-echo -e "${BLUE}    --region $REGION${NC}"
-echo ""
 
-echo -e "${YELLOW}⚠️  Note: You'll need to update commercial credentials later for cross-partition calls to work.${NC}"
+# Check if secret already has a valid API key
+CURRENT_SECRET=$(aws secretsmanager get-secret-value \
+    --secret-id $SECRET_NAME \
+    --profile $PROFILE \
+    --region $REGION \
+    --query 'SecretString' \
+    --output text 2>/dev/null || echo '{}')
+
+CURRENT_API_KEY=$(echo "$CURRENT_SECRET" | jq -r '.bedrock_api_key // "PLACEHOLDER"' 2>/dev/null || echo "PLACEHOLDER")
+
+if [[ "$CURRENT_API_KEY" != "PLACEHOLDER" && "$CURRENT_API_KEY" != "null" && "$CURRENT_API_KEY" != "{}" ]]; then
+    echo -e "${GREEN}✅ Existing API key found and preserved${NC}"
+    echo "API Key: ${CURRENT_API_KEY:0:20}..."
+else
+    echo -e "${YELLOW}⚠️  No API key found in secret. Secret will be created without credentials.${NC}"
+    echo -e "${YELLOW}📝 You can update it later with your commercial credentials.${NC}"
+    echo -e "${BLUE}    --secret-string '{\"bedrock_api_key\":\"YOUR_BEDROCK_API_KEY\",\"region\":\"us-east-1\"}' \\${NC}"
+    echo -e "${BLUE}    --profile $PROFILE \\${NC}"
+    echo -e "${BLUE}    --region $REGION${NC}"
+    echo ""
+    echo -e "${YELLOW}⚠️  Note: You'll need to update commercial credentials for cross-partition calls to work.${NC}"
+fi
 
 echo ""
 echo -e "${BLUE}🔧 Step 3: Deploying Lambda Functions${NC}"

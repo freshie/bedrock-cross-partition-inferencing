@@ -1,18 +1,38 @@
 #!/bin/bash
 
-# Test script for the Bedrock invoke-model endpoint using AWS CLI
-# This tests the cross-partition inference proxy with proper authentication
+# Cross-Partition Inference Proxy Test
+# Tests GovCloud → Commercial AWS Bedrock integration
 
 set -e
 
-echo "🧪 Testing Bedrock Invoke Model Endpoint"
-echo "========================================"
-echo "Using AWS CLI test-invoke-method for authentication"
+# Colors for terminal output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# API Configuration
+API_BASE_URL="https://REDACTED_ENDPOINT.execute-api.us-gov-west-1.amazonaws.com/v1"
+INVOKE_ENDPOINT="${API_BASE_URL}/bedrock/invoke-model"
+
+echo ""
+echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║${NC}          ${YELLOW}🚀 Cross-Partition Inference Proxy Test${NC}          ${BLUE}║${NC}"
+echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "${CYAN}📍 GovCloud API Endpoint:${NC}"
+echo -e "   ${INVOKE_ENDPOINT}"
+echo ""
+echo -e "${PURPLE}🔄 Route: GovCloud (us-gov-west-1) → Commercial AWS (us-east-1)${NC}"
 echo ""
 
-# Test 1: Simple text generation with Titan Text Express (should be available)
-echo "📝 Test 1: Text generation with Titan Text Express"
-echo "-------------------------------------------------"
+# Test 1: Amazon Titan Text Express
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}📝 Test 1: Amazon Titan Text Express${NC}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 PAYLOAD_TITAN='{
   "modelId": "amazon.titan-text-express-v1",
@@ -27,11 +47,12 @@ PAYLOAD_TITAN='{
   }
 }'
 
-echo "Request payload:"
-echo "$PAYLOAD_TITAN" | jq .
+echo -e "${YELLOW}📤 Request:${NC} POST ${INVOKE_ENDPOINT}"
+echo -e "${YELLOW}🤖 Model:${NC} amazon.titan-text-express-v1"
+echo -e "${YELLOW}❓ Query:${NC} What is the capital of France?"
 echo ""
 
-echo "Making request via AWS CLI..."
+echo -e "${CYAN}⏳ Making cross-partition request...${NC}"
 RESPONSE_TITAN=$(aws apigateway test-invoke-method \
   --rest-api-id REDACTED_ENDPOINT \
   --resource-id ze3g42 \
@@ -40,51 +61,74 @@ RESPONSE_TITAN=$(aws apigateway test-invoke-method \
   --region us-gov-west-1 \
   --body "$PAYLOAD_TITAN")
 
-echo "Response:"
-echo "$RESPONSE_TITAN" | jq .
+# Extract and format the response
+STATUS_TITAN=$(echo "$RESPONSE_TITAN" | jq -r '.status')
+BODY_TITAN=$(echo "$RESPONSE_TITAN" | jq -r '.body' | jq -r '.body' | jq -r '.results[0].outputText' 2>/dev/null || echo "Error parsing response")
+
+if [ "$STATUS_TITAN" = "200" ]; then
+    echo -e "${GREEN}✅ Status: ${STATUS_TITAN} (Success)${NC}"
+    echo -e "${GREEN}🎯 AI Response:${NC}"
+    echo -e "   ${BODY_TITAN}"
+else
+    echo -e "${RED}❌ Status: ${STATUS_TITAN} (Failed)${NC}"
+    echo -e "${RED}Error:${NC} $(echo "$RESPONSE_TITAN" | jq -r '.body')"
+fi
+
 echo ""
 
-# Test 2: Simple text generation with Amazon Nova Micro
-echo "📝 Test 2: Text generation with Amazon Nova Micro"
-echo "------------------------------------------------"
+# Test 2: Claude 3.5 Sonnet (Latest Anthropic Model)
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}📝 Test 2: Claude 3.5 Sonnet (Latest Anthropic Model)${NC}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-PAYLOAD_NOVA='{
-  "modelId": "amazon.nova-micro-v1:0",
+PAYLOAD_CLAUDE='{
+  "modelId": "anthropic.claude-3-5-sonnet-20241022-v2:0",
   "contentType": "application/json",
   "accept": "application/json",
   "body": {
+    "anthropic_version": "bedrock-2023-05-31",
+    "max_tokens": 100,
     "messages": [
       {
         "role": "user",
-        "content": [
-          {
-            "text": "What is the capital of France?"
-          }
-        ]
+        "content": "Explain quantum computing in simple terms. Be concise but informative."
       }
-    ],
-    "inferenceConfig": {
-      "maxTokens": 50,
-      "temperature": 0.7
-    }
+    ]
   }
 }'
 
-echo "Request payload:"
-echo "$PAYLOAD_NOVA" | jq .
+echo -e "${YELLOW}📤 Request:${NC} POST ${INVOKE_ENDPOINT}"
+echo -e "${YELLOW}🤖 Model:${NC} anthropic.claude-3-5-sonnet-20241022-v2:0"
+echo -e "${YELLOW}❓ Query:${NC} Explain quantum computing in simple terms"
 echo ""
 
-echo "Making request via AWS CLI..."
-RESPONSE_NOVA=$(aws apigateway test-invoke-method \
+echo -e "${CYAN}⏳ Making cross-partition request...${NC}"
+RESPONSE_CLAUDE=$(aws apigateway test-invoke-method \
   --rest-api-id REDACTED_ENDPOINT \
   --resource-id ze3g42 \
   --http-method POST \
   --profile govcloud \
   --region us-gov-west-1 \
-  --body "$PAYLOAD_NOVA")
+  --body "$PAYLOAD_CLAUDE")
 
-echo "Response:"
-echo "$RESPONSE_NOVA" | jq .
+# Extract and format the response
+STATUS_CLAUDE=$(echo "$RESPONSE_CLAUDE" | jq -r '.status')
+BODY_CLAUDE=$(echo "$RESPONSE_CLAUDE" | jq -r '.body' | jq -r '.body' | jq -r '.content[0].text' 2>/dev/null || echo "Error parsing response")
+TOKENS_CLAUDE=$(echo "$RESPONSE_CLAUDE" | jq -r '.body' | jq -r '.body' | jq -r '.usage.output_tokens' 2>/dev/null || echo "N/A")
+
+if [ "$STATUS_CLAUDE" = "200" ]; then
+    echo -e "${GREEN}✅ Status: ${STATUS_CLAUDE} (Success)${NC}"
+    echo -e "${GREEN}🎯 AI Response:${NC}"
+    echo -e "   ${BODY_CLAUDE}"
+    echo -e "${CYAN}📊 Output Tokens: ${TOKENS_CLAUDE}${NC}"
+else
+    echo -e "${RED}❌ Status: ${STATUS_CLAUDE} (Failed)${NC}"
+    echo -e "${RED}Error:${NC} $(echo "$RESPONSE_CLAUDE" | jq -r '.body')"
+fi
+
 echo ""
-
-echo "✅ Invoke model endpoint tests completed!"
+echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║${NC}                    ${GREEN}🎉 Tests Complete!${NC}                    ${BLUE}║${NC}"
+echo -e "${BLUE}║${NC}     ${PURPLE}Cross-partition Bedrock proxy is operational${NC}      ${BLUE}║${NC}"
+echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo ""

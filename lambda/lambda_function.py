@@ -139,79 +139,131 @@ def get_commercial_credentials():
         response = secrets_client.get_secret_value(SecretId=COMMERCIAL_CREDENTIALS_SECRET)
         secret_data = json.loads(response['SecretString'])
         
-        required_keys = ['bedrock_api_key']
+        # Check for bedrock_api_key (the working format)
+        if 'bedrock_api_key' in secret_data:
+            return secret_data
+        
+        # Fallback to AWS credentials format if available
+        required_keys = ['aws_access_key_id', 'aws_secret_access_key']
         for key in required_keys:
             if key not in secret_data:
                 raise ValueError(f"Missing required credential: {key}")
-        
-        # Check if API key is a placeholder
-        if secret_data['bedrock_api_key'] == 'PLACEHOLDER_BEDROCK_API_KEY':
-            raise ValueError("Commercial Bedrock API key not configured. Please update the secret with your actual API key.")
         
         return secret_data
         
     except ClientError as e:
         logger.error(f"Failed to retrieve commercial credentials: {str(e)}")
-        raise Exception("Unable to retrieve commercial Bedrock API key")
+        raise Exception("Unable to retrieve commercial credentials")
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON in secrets: {str(e)}")
         raise Exception("Invalid credential format in Secrets Manager")
 
-def create_bedrock_headers(api_key):
+def create_bedrock_session(credentials):
     """
-    Create headers for Bedrock API requests using the API key directly
+    Create AWS session with commercial credentials for Bedrock access
     """
     try:
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f"Bearer {api_key}"
-        }
+        # Create session with commercial AWS credentials
+        session = boto3.Session(
+            aws_access_key_id=credentials['aws_access_key_id'],
+            aws_secret_access_key=credentials['aws_secret_access_key'],
+            region_name=credentials.get('region', 'us-east-1')
+        )
         
-        return headers
+        return session
         
     except Exception as e:
-        logger.error(f"Failed to create Bedrock headers: {str(e)}")
-        raise Exception("Unable to create Bedrock headers")
+        logger.error(f"Failed to create Bedrock session: {str(e)}")
+        raise Exception("Unable to create Bedrock session")
+
+def create_inference_profile(session, model_id):
+    """
+    Create an inference profile for models that require it
+    """
+    try:
+        bedrock_client = session.client('bedrock')
+        
+        # Generate a profile name based on the model
+        profile_name = f"cross-partition-{model_id.replace(':', '-').replace('.', '-')}"
+        
+        try:
+            # Try to create the inference profile
+            response = bedrock_client.create_inference_profile(
+                inferenceProfileName=profile_name,
+                description=f"Cross-partition inference profile for {model_id}",
+                modelSource={
+                    'copyFrom': model_id
+                }
+            )
+            return response.get('inferenceProfileArn')
+            
+        except Exception as create_error:
+            error_str = str(create_error)
+            if "already exists" in error_str.lower() or "conflictexception" in error_str.lower():
+                # Profile already exists, list and find it
+                try:
+                    list_response = bedrock_client.list_inference_profiles()
+                    for profile in list_response.get('inferenceProfileSummaries', []):
+                        if profile.get('inferenceProfileName') == profile_name:
+                            return profile.get('inferenceProfileArn')
+                except Exception as list_error:
+                    logger.error(f"Failed to list inference profiles: {str(list_error)}")
+            
+            logger.error(f"Failed to create inference profile: {str(create_error)}")
+            return None
+        
+    except Exception as e:
+        logger.error(f"Failed to create inference profile: {str(e)}")
+        return None
 
 def forward_to_bedrock(commercial_creds, request_data):
     """
-    Forward the request to commercial Bedrock using HTTP API with Bearer token
+    Forward the request to commercial Bedrock using API key or AWS SDK
     """
     try:
-        # Create headers with the API key
-        headers = create_bedrock_headers(commercial_creds['bedrock_api_key'])
-        
-        # Determine the correct endpoint based on model type
+        # Get model ID and body data
         model_id = request_data['modelId']
-        
-        # Nova models use the converse API, others use invoke
-        if 'nova' in model_id.lower():
-            endpoint = 'converse'
-        else:
-            endpoint = 'invoke'
-            
-        url = f"https://bedrock-runtime.us-east-1.amazonaws.com/model/{model_id}/{endpoint}"
-        
-        # Convert body to JSON if it's a string
         body_data = request_data['body']
-        if isinstance(body_data, str):
-            try:
-                body_data = json.loads(body_data)
-            except json.JSONDecodeError:
-                pass  # Keep as string if not valid JSON
         
-        # Make the HTTP request to Bedrock
-        response = requests.post(
-            url,
-            headers=headers,
-            json=body_data,  # Use json parameter instead of data for proper JSON encoding
-            timeout=30
-        )
+        # Convert body to JSON string if it's a dict
+        if isinstance(body_data, dict):
+            body_json = json.dumps(body_data)
+        else:
+            body_json = body_data
         
-        # Check if request was successful
+        # Check if we have a Bedrock API key (preferred method)
+        if 'bedrock_api_key' in commercial_creds:
+            return forward_with_api_key(commercial_creds['bedrock_api_key'], model_id, body_json)
+        else:
+            return forward_with_aws_credentials(commercial_creds, model_id, body_json)
+        
+    except Exception as e:
+        logger.error(f"Unexpected error calling Bedrock: {str(e)}")
+        raise Exception(f"Failed to call commercial Bedrock: {str(e)}")
+
+def forward_with_api_key(api_key, model_id, body_json):
+    """Forward request using Bedrock API key"""
+    try:
+        # Decode the base64 API key if needed
+        try:
+            import base64
+            decoded_key = base64.b64decode(api_key).decode('utf-8')
+            # If it decodes successfully and looks like a key, use it
+            if ':' in decoded_key and 'AKIA' in decoded_key:
+                api_key = decoded_key
+        except:
+            # If decoding fails, use the original key
+            pass
+        
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {api_key}'
+        }
+        
+        url = f"https://bedrock-runtime.us-east-1.amazonaws.com/model/{model_id}/invoke"
+        response = requests.post(url, headers=headers, data=body_json, timeout=30)
         response.raise_for_status()
         
-        # Return the response data
         return {
             'body': response.text,
             'contentType': response.headers.get('content-type', 'application/json')
@@ -222,7 +274,6 @@ def forward_to_bedrock(commercial_creds, request_data):
         error_message = e.response.text
         logger.error(f"Bedrock API HTTP error: {status_code} - {error_message}")
         
-        # Re-raise with more specific error information
         if status_code == 400:
             raise Exception(f"Invalid request parameters: {error_message}")
         elif status_code == 403:
@@ -231,14 +282,65 @@ def forward_to_bedrock(commercial_creds, request_data):
             raise Exception(f"Request throttled by commercial Bedrock: {error_message}")
         else:
             raise Exception(f"Commercial Bedrock error ({status_code}): {error_message}")
-    
-    except requests.exceptions.RequestException as e:
-        logger.error(f"HTTP request error: {str(e)}")
-        raise Exception(f"Failed to call commercial Bedrock: {str(e)}")
-    
+
+def forward_with_aws_credentials(commercial_creds, model_id, body_json):
+    """Forward request using AWS credentials"""
+    try:
+        # Create AWS session with commercial credentials
+        session = create_bedrock_session(commercial_creds)
+        
+        # Create Bedrock Runtime client
+        bedrock_client = session.client('bedrock-runtime', region_name='us-east-1')
+        
+        try:
+            # Try direct model invocation first
+            response = bedrock_client.invoke_model(
+                modelId=model_id,
+                contentType='application/json',
+                accept='application/json',
+                body=body_json
+            )
+            
+            # Read the response
+            response_body = response['body'].read().decode('utf-8')
+            
+            return {
+                'body': response_body,
+                'contentType': response.get('contentType', 'application/json')
+            }
+            
+        except Exception as e:
+            error_str = str(e)
+            if "inference profile" in error_str.lower() or "on-demand throughput" in error_str.lower():
+                # Model requires inference profile, try to create one and retry
+                logger.info(f"Model {model_id} requires inference profile, attempting to create one")
+                
+                profile_arn = create_inference_profile(session, model_id)
+                if profile_arn:
+                    # Extract profile ID from ARN and retry
+                    profile_id = profile_arn.split('/')[-1]
+                    
+                    logger.info(f"Retrying with inference profile: {profile_id}")
+                    response = bedrock_client.invoke_model(
+                        modelId=profile_id,
+                        contentType='application/json',
+                        accept='application/json',
+                        body=body_json
+                    )
+                    
+                    response_body = response['body'].read().decode('utf-8')
+                    
+                    return {
+                        'body': response_body,
+                        'contentType': response.get('contentType', 'application/json')
+                    }
+            
+            # Re-raise the original exception
+            raise e
+        
     except Exception as e:
-        logger.error(f"Unexpected error calling Bedrock: {str(e)}")
-        raise Exception(f"Failed to call commercial Bedrock: {str(e)}")
+        logger.error(f"Error with AWS credentials approach: {str(e)}")
+        raise e
 
 def log_request(request_id, request_data, response, latency, success, error_message=None):
     """
@@ -281,26 +383,24 @@ def log_request(request_id, request_data, response, latency, success, error_mess
 
 def get_available_models(event, context):
     """
-    Get available Bedrock models from commercial partition using API key
+    Get available Bedrock models from commercial partition using AWS credentials
     """
     try:
-        # Get commercial Bedrock API key
+        # Get commercial AWS credentials
         commercial_creds = get_commercial_credentials()
         
-        # Create headers with the API key
-        headers = create_bedrock_headers(commercial_creds['bedrock_api_key'])
+        # Create AWS session with commercial credentials
+        session = create_bedrock_session(commercial_creds)
         
-        # Make HTTP request to list foundation models
-        url = "https://bedrock.us-east-1.amazonaws.com/foundation-models"
-        response = requests.get(url, headers=headers, timeout=30)
-        response.raise_for_status()
+        # Create Bedrock client
+        bedrock_client = session.client('bedrock', region_name='us-east-1')
         
-        # Parse the response
-        response_data = response.json()
+        # List foundation models
+        response = bedrock_client.list_foundation_models()
         
         # Process the models list
         models = []
-        for model in response_data.get('modelSummaries', []):
+        for model in response.get('modelSummaries', []):
             model_info = {
                 'modelId': model.get('modelId'),
                 'modelName': model.get('modelName'),

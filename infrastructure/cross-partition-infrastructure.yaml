@@ -39,16 +39,13 @@ Resources:
           Value: MVP
 
   # Secrets Manager secret for commercial Bedrock API key
+  # Note: This will only create the secret if it doesn't exist
+  # Existing secrets will not be overwritten
   CommercialCredentialsSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: !Ref CommercialCredentialsSecretName
       Description: 'Commercial Bedrock API key for cross-partition access'
-      SecretString: !Sub |
-        {
-          "bedrock_api_key": "REPLACE_WITH_ACTUAL_BEDROCK_API_KEY",
-          "region": "us-east-1"
-        }
       Tags:
         - Key: Purpose
           Value: CrossPartitionInference
