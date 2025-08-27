@@ -3,9 +3,16 @@
 🚀 **Enable AWS GovCloud applications to access Commercial Bedrock models through a secure, compliant proxy**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub stars](https://img.shields.io/github/stars/freshie/bedrock-cross-partition-inferencing?style=social)](https://github.com/freshie/bedrock-cross-partition-inferencing/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/freshie/bedrock-cross-partition-inferencing?style=social)](https://github.com/freshie/bedrock-cross-partition-inferencing/network/members)
+[![GitHub issues](https://img.shields.io/github/issues/freshie/bedrock-cross-partition-inferencing)](https://github.com/freshie/bedrock-cross-partition-inferencing/issues)
+[![GitHub pull requests](https://img.shields.io/github/issues-pr/freshie/bedrock-cross-partition-inferencing)](https://github.com/freshie/bedrock-cross-partition-inferencing/pulls)
+
 [![AWS](https://img.shields.io/badge/AWS-GovCloud%20%2B%20Commercial-orange)](https://aws.amazon.com/)
 [![Bedrock](https://img.shields.io/badge/Amazon-Bedrock-blue)](https://aws.amazon.com/bedrock/)
 [![Version](https://img.shields.io/badge/Version-1.0.0%20Over%20Internet-green)](https://github.com/freshie/bedrock-cross-partition-inferencing/releases)
+[![Serverless](https://img.shields.io/badge/Serverless-Lambda%20%2B%20API%20Gateway-blueviolet)](https://aws.amazon.com/serverless/)
+[![Security](https://img.shields.io/badge/Security-IAM%20%2B%20Secrets%20Manager-red)](https://aws.amazon.com/security/)
 
 ## 🎯 **The Challenge: Bridging the AI Gap**
 
@@ -242,11 +249,33 @@ This is an educational/demonstration project showcasing cross-partition AI infer
 - Test thoroughly in your environment
 - Validate against your organization's data governance policies
 
+## 👥 **Contributors**
+
+Thanks to all the amazing people who have contributed to this project! 🎉
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/freshie"><img src="https://github.com/freshie.png" width="100px;" alt=""/><br /><sub><b>freshie</b></sub></a><br />💻 📖 🎨 🚧</td>
+  </tr>
+</table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+Want to contribute? Check out our [Contributing Guide](CONTRIBUTING.md)!
+
 ## 🆘 **Support**
 
 - 📖 [Documentation](./docs/)
 - 🐛 [Issues](https://github.com/freshie/bedrock-cross-partition-inferencing/issues)
 - 💬 [Discussions](https://github.com/freshie/bedrock-cross-partition-inferencing/discussions)
+- 🤝 [Contributing](CONTRIBUTING.md)
+- 🛡️ [Security Policy](SECURITY.md)
+- 📋 [Code of Conduct](CODE_OF_CONDUCT.md)
 
 ---
 
