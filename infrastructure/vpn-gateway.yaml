@@ -1,0 +1,403 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Site-to-Site VPN Gateway infrastructure for cross-partition connectivity'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'prod'
+    Description: 'Environment name for resource tagging'
+  
+  ProjectName:
+    Type: String
+    Default: 'cross-partition-vpn'
+    Description: 'Project name for resource naming'
+
+  GovCloudVPCStackName:
+    Type: String
+    Default: 'cross-partition-vpn-govcloud-vpc'
+    Description: 'Name of the GovCloud VPC stack to import resources from'
+
+  CommercialVPCStackName:
+    Type: String
+    Default: 'cross-partition-vpn-commercial-vpc'
+    Description: 'Name of the Commercial VPC stack to import resources from'
+
+  # Customer Gateway IP addresses (these would be provided during deployment)
+  GovCloudCustomerGatewayIP:
+    Type: String
+    Description: 'Public IP address for GovCloud Customer Gateway'
+    AllowedPattern: '^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$'
+    ConstraintDescription: 'Must be a valid IP address'
+
+  CommercialCustomerGatewayIP:
+    Type: String
+    Description: 'Public IP address for Commercial Customer Gateway'
+    AllowedPattern: '^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$'
+    ConstraintDescription: 'Must be a valid IP address'
+
+  # Pre-shared keys for VPN tunnels (should be generated securely)
+  Tunnel1PreSharedKey:
+    Type: String
+    NoEcho: true
+    Description: 'Pre-shared key for VPN tunnel 1 (minimum 8 characters)'
+    MinLength: 8
+    MaxLength: 64
+
+  Tunnel2PreSharedKey:
+    Type: String
+    NoEcho: true
+    Description: 'Pre-shared key for VPN tunnel 2 (minimum 8 characters)'
+    MinLength: 8
+    MaxLength: 64
+
+  # BGP ASN numbers
+  GovCloudBGPASN:
+    Type: Number
+    Default: 65000
+    Description: 'BGP ASN for GovCloud side'
+    MinValue: 64512
+    MaxValue: 65534
+
+  CommercialBGPASN:
+    Type: Number
+    Default: 65001
+    Description: 'BGP ASN for Commercial side'
+    MinValue: 64512
+    MaxValue: 65534
+
+Conditions:
+  # Determine which partition we're deploying to based on region
+  IsGovCloudRegion: !Or
+    - !Equals [!Ref 'AWS::Region', 'us-gov-west-1']
+    - !Equals [!Ref 'AWS::Region', 'us-gov-east-1']
+
+Resources:
+  # VPN Gateway for current partition
+  VPNGateway:
+    Type: AWS::EC2::VPNGateway
+    Properties:
+      Type: ipsec.1
+      AmazonSideAsn: !If
+        - IsGovCloudRegion
+        - !Ref GovCloudBGPASN
+        - !Ref CommercialBGPASN
+      Tags:
+        - Key: Name
+          Value: !Sub 
+            - '${ProjectName}-${Partition}-vpn-gateway'
+            - Partition: !If [IsGovCloudRegion, 'govcloud', 'commercial']
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Partition
+          Value: !If [IsGovCloudRegion, 'govcloud', 'commercial']
+
+  # Attach VPN Gateway to VPC
+  VPNGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !If
+        - IsGovCloudRegion
+        - Fn::ImportValue: !Sub '${GovCloudVPCStackName}-VPCId'
+        - Fn::ImportValue: !Sub '${CommercialVPCStackName}-VPCId'
+      VpnGatewayId: !Ref VPNGateway
+
+  # Customer Gateway for remote partition
+  CustomerGateway:
+    Type: AWS::EC2::CustomerGateway
+    Properties:
+      Type: ipsec.1
+      BgpAsn: !If
+        - IsGovCloudRegion
+        - !Ref CommercialBGPASN
+        - !Ref GovCloudBGPASN
+      IpAddress: !If
+        - IsGovCloudRegion
+        - !Ref CommercialCustomerGatewayIP
+        - !Ref GovCloudCustomerGatewayIP
+      Tags:
+        - Key: Name
+          Value: !Sub 
+            - '${ProjectName}-${RemotePartition}-customer-gateway'
+            - RemotePartition: !If [IsGovCloudRegion, 'commercial', 'govcloud']
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: RemotePartition
+          Value: !If [IsGovCloudRegion, 'commercial', 'govcloud']
+
+  # Site-to-Site VPN Connection with redundant tunnels
+  VPNConnection:
+    Type: AWS::EC2::VPNConnection
+    Properties:
+      Type: ipsec.1
+      StaticRoutesOnly: false  # Use BGP for dynamic routing
+      CustomerGatewayId: !Ref CustomerGateway
+      VpnGatewayId: !Ref VPNGateway
+      VpnTunnelOptionsSpecifications:
+        # Tunnel 1 configuration
+        - PreSharedKey: !Ref Tunnel1PreSharedKey
+          TunnelInsideCidr: '169.254.10.0/30'
+        # Tunnel 2 configuration
+        - PreSharedKey: !Ref Tunnel2PreSharedKey
+          TunnelInsideCidr: '169.254.11.0/30'
+      Tags:
+        - Key: Name
+          Value: !Sub 
+            - '${ProjectName}-${LocalPartition}-to-${RemotePartition}-vpn'
+            - LocalPartition: !If [IsGovCloudRegion, 'govcloud', 'commercial']
+              RemotePartition: !If [IsGovCloudRegion, 'commercial', 'govcloud']
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: LocalPartition
+          Value: !If [IsGovCloudRegion, 'govcloud', 'commercial']
+        - Key: RemotePartition
+          Value: !If [IsGovCloudRegion, 'commercial', 'govcloud']
+
+  # Route propagation for private subnet
+  VPNGatewayRoutePropagation:
+    Type: AWS::EC2::VPNGatewayRoutePropagation
+    DependsOn: VPNGatewayAttachment
+    Properties:
+      RouteTableIds:
+        - !If
+          - IsGovCloudRegion
+          - Fn::ImportValue: !Sub '${GovCloudVPCStackName}-PrivateRouteTableId'
+          - Fn::ImportValue: !Sub '${CommercialVPCStackName}-PrivateRouteTableId'
+      VpnGatewayId: !Ref VPNGateway
+
+  # CloudWatch Log Group for VPN logs
+  VPNLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub 
+        - '/aws/vpn/${ProjectName}-${Partition}'
+        - Partition: !If [IsGovCloudRegion, 'govcloud', 'commercial']
+      RetentionInDays: 30
+
+  # IAM Role for VPN monitoring
+  VPNMonitoringRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: VPNMonitoringPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeVpnConnections
+                  - ec2:DescribeVpnGateways
+                  - ec2:DescribeCustomerGateways
+                  - cloudwatch:PutMetricData
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+
+  # Lambda function for VPN monitoring
+  VPNMonitoringFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 
+        - '${ProjectName}-${Partition}-vpn-monitor'
+        - Partition: !If [IsGovCloudRegion, 'govcloud', 'commercial']
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt VPNMonitoringRole.Arn
+      Timeout: 60
+      Environment:
+        Variables:
+          VPN_CONNECTION_ID: !Ref VPNConnection
+          VPN_GATEWAY_ID: !Ref VPNGateway
+          CUSTOMER_GATEWAY_ID: !Ref CustomerGateway
+          PARTITION: !If [IsGovCloudRegion, 'govcloud', 'commercial']
+          PROJECT_NAME: !Ref ProjectName
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          from datetime import datetime
+          
+          def lambda_handler(event, context):
+              ec2 = boto3.client('ec2')
+              cloudwatch = boto3.client('cloudwatch')
+              
+              vpn_connection_id = os.environ['VPN_CONNECTION_ID']
+              partition = os.environ['PARTITION']
+              project_name = os.environ['PROJECT_NAME']
+              
+              try:
+                  # Get VPN connection status
+                  response = ec2.describe_vpn_connections(
+                      VpnConnectionIds=[vpn_connection_id]
+                  )
+                  
+                  vpn_connection = response['VpnConnections'][0]
+                  state = vpn_connection['State']
+                  
+                  # Get tunnel telemetry
+                  vgw_telemetry = vpn_connection.get('VgwTelemetry', [])
+                  
+                  metrics = []
+                  
+                  # Overall VPN state metric
+                  state_value = 1 if state == 'available' else 0
+                  metrics.append({
+                      'MetricName': 'VPNConnectionState',
+                      'Value': state_value,
+                      'Unit': 'None',
+                      'Dimensions': [
+                          {'Name': 'VPNConnectionId', 'Value': vpn_connection_id},
+                          {'Name': 'Partition', 'Value': partition},
+                          {'Name': 'Project', 'Value': project_name}
+                      ]
+                  })
+                  
+                  # Tunnel-specific metrics
+                  for i, tunnel in enumerate(vgw_telemetry, 1):
+                      tunnel_state = tunnel.get('Status', 'DOWN')
+                      tunnel_value = 1 if tunnel_state == 'UP' else 0
+                      
+                      metrics.append({
+                          'MetricName': 'VPNTunnelState',
+                          'Value': tunnel_value,
+                          'Unit': 'None',
+                          'Dimensions': [
+                              {'Name': 'VPNConnectionId', 'Value': vpn_connection_id},
+                              {'Name': 'TunnelNumber', 'Value': str(i)},
+                              {'Name': 'Partition', 'Value': partition},
+                              {'Name': 'Project', 'Value': project_name}
+                          ]
+                      })
+                      
+                      # Accepted route count
+                      accepted_routes = tunnel.get('AcceptedRouteCount', 0)
+                      metrics.append({
+                          'MetricName': 'VPNTunnelAcceptedRoutes',
+                          'Value': accepted_routes,
+                          'Unit': 'Count',
+                          'Dimensions': [
+                              {'Name': 'VPNConnectionId', 'Value': vpn_connection_id},
+                              {'Name': 'TunnelNumber', 'Value': str(i)},
+                              {'Name': 'Partition', 'Value': partition},
+                              {'Name': 'Project', 'Value': project_name}
+                          ]
+                      })
+                  
+                  # Send metrics to CloudWatch
+                  for metric in metrics:
+                      cloudwatch.put_metric_data(
+                          Namespace=f'VPN/{project_name}',
+                          MetricData=[{
+                              'MetricName': metric['MetricName'],
+                              'Value': metric['Value'],
+                              'Unit': metric['Unit'],
+                              'Dimensions': metric['Dimensions'],
+                              'Timestamp': datetime.utcnow()
+                          }]
+                      )
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps({
+                          'vpn_state': state,
+                          'tunnel_count': len(vgw_telemetry),
+                          'metrics_sent': len(metrics)
+                      })
+                  }
+                  
+              except Exception as e:
+                  print(f"Error monitoring VPN: {str(e)}")
+                  return {
+                      'statusCode': 500,
+                      'body': json.dumps({'error': str(e)})
+                  }
+
+  # EventBridge rule to trigger VPN monitoring every 5 minutes
+  VPNMonitoringSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: 'Trigger VPN monitoring every 5 minutes'
+      ScheduleExpression: 'rate(5 minutes)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt VPNMonitoringFunction.Arn
+          Id: 'VPNMonitoringTarget'
+
+  # Permission for EventBridge to invoke Lambda
+  VPNMonitoringPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref VPNMonitoringFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt VPNMonitoringSchedule.Arn
+
+Outputs:
+  VPNGatewayId:
+    Description: 'VPN Gateway ID'
+    Value: !Ref VPNGateway
+    Export:
+      Name: !Sub '${AWS::StackName}-VPNGatewayId'
+
+  CustomerGatewayId:
+    Description: 'Customer Gateway ID'
+    Value: !Ref CustomerGateway
+    Export:
+      Name: !Sub '${AWS::StackName}-CustomerGatewayId'
+
+  VPNConnectionId:
+    Description: 'VPN Connection ID'
+    Value: !Ref VPNConnection
+    Export:
+      Name: !Sub '${AWS::StackName}-VPNConnectionId'
+
+  VPNConnectionState:
+    Description: 'VPN Connection State'
+    Value: !GetAtt VPNConnection.State
+    Export:
+      Name: !Sub '${AWS::StackName}-VPNConnectionState'
+
+  Tunnel1IP:
+    Description: 'Tunnel 1 Outside IP Address'
+    Value: !GetAtt VPNConnection.VpnTunnelOptionsSpecifications.0.TunnelOutsideIpAddress
+    Export:
+      Name: !Sub '${AWS::StackName}-Tunnel1IP'
+
+  Tunnel2IP:
+    Description: 'Tunnel 2 Outside IP Address'
+    Value: !GetAtt VPNConnection.VpnTunnelOptionsSpecifications.1.TunnelOutsideIpAddress
+    Export:
+      Name: !Sub '${AWS::StackName}-Tunnel2IP'
+
+  VPNMonitoringFunctionArn:
+    Description: 'ARN of VPN monitoring Lambda function'
+    Value: !GetAtt VPNMonitoringFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-VPNMonitoringFunctionArn'
+
+  BGPASNLocal:
+    Description: 'Local BGP ASN'
+    Value: !If
+      - IsGovCloudRegion
+      - !Ref GovCloudBGPASN
+      - !Ref CommercialBGPASN
+    Export:
+      Name: !Sub '${AWS::StackName}-BGPASNLocal'
+
+  BGPASNRemote:
+    Description: 'Remote BGP ASN'
+    Value: !If
+      - IsGovCloudRegion
+      - !Ref CommercialBGPASN
+      - !Ref GovCloudBGPASN
+    Export:
+      Name: !Sub '${AWS::StackName}-BGPASNRemote'
