@@ -142,13 +142,13 @@ The system primarily uses Bedrock API keys for authentication, which provides se
 
 #### API Key Format
 ```
-bedrock-api-user+1-at-YOUR-COMMERCIAL-ACCOUNT-ID:F+ceGMt7tr53grXS5bq4tz8pHMJv1VlnqZraPTmK53SZ9PmJ0FXCUGq0cLE=
+bedrock-api-user+1-at-YOUR-ACCOUNT-ID:EXAMPLE-API-KEY-DO-NOT-USE
 ```
 
 #### Key Components
-- **User Identifier**: `bedrock-api-user+1-at-YOUR-COMMERCIAL-ACCOUNT-ID`
+- **User Identifier**: `bedrock-api-user+1-at-YOUR-ACCOUNT-ID`
 - **Secret Key**: Base64-encoded authentication token
-- **Account ID**: Embedded in the user identifier (YOUR-COMMERCIAL-ACCOUNT-ID)
+- **Account ID**: Embedded in the user identifier (YOUR-ACCOUNT-ID)
 
 #### Storage in Secrets Manager
 ```json

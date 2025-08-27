@@ -83,8 +83,8 @@ This will return output like:
     "ServiceSpecificCredential": {
         "CreateDate": "2025-08-27T01:00:00Z",
         "ServiceName": "bedrock.amazonaws.com",
-        "ServiceUserName": "bedrock-cross-partition-user-at-123456789012",
-        "ServicePassword": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        "ServiceUserName": "bedrock-cross-partition-user-at-YOUR-ACCOUNT-ID",
+        "ServicePassword": "EXAMPLE-PASSWORD-DO-NOT-USE",
         "ServiceSpecificCredentialId": "ACCAEXAMPLE123DEFGHIJKL",
         "UserName": "bedrock-cross-partition-user",
         "Status": "Active"
@@ -101,7 +101,7 @@ Take the `ServicePassword` from the output above and update your GovCloud secret
 aws secretsmanager update-secret \
     --secret-id cross-partition-commercial-creds \
     --secret-string '{
-        "bedrock_api_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        "bedrock_api_key": "YOUR-ACTUAL-API-KEY-HERE",
         "region": "us-east-1"
     }' \
     --profile govcloud \
@@ -128,13 +128,13 @@ Test that the API key has the right permissions:
 ```bash
 # Test listing models
 curl -X GET \
-  -H "Authorization: Bearer wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" \
+  -H "Authorization: Bearer YOUR-ACTUAL-API-KEY-HERE" \
   -H "Content-Type: application/json" \
   "https://bedrock.us-east-1.amazonaws.com/foundation-models"
 
 # Test model invocation
 curl -X POST \
-  -H "Authorization: Bearer wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" \
+  -H "Authorization: Bearer YOUR-ACTUAL-API-KEY-HERE" \
   -H "Content-Type: application/json" \
   -d '{
     "anthropic_version": "bedrock-2023-05-31",

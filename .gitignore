@@ -5,6 +5,8 @@ aws-credentials*
 *secrets*
 *.pem
 *.key
+*account-id*
+*account_id*
 
 # AWS Config Files
 aws-config*
