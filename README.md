@@ -261,11 +261,20 @@ We recommend a three-phase implementation strategy that allows organizations to 
 
 ## 🤝 **Contributing**
 
+We follow a structured branching strategy for development. Please see our [Branching Strategy](BRANCHING_STRATEGY.md) for detailed workflow information.
+
+**Quick Start:**
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+2. Create a feature branch from `develop`: `git checkout -b feature/your-feature-name`
+3. Make your changes and add tests
+4. Submit a pull request to the `develop` branch
+5. After review and merge, changes will be included in the next release to `main`
+
+**Branch Structure:**
+- `main` - Stable releases only
+- `develop` - Integration branch for ongoing development  
+- `feature/*` - New feature development
+- `hotfix/*` - Critical production fixes
 
 ## 📄 **License**
 
