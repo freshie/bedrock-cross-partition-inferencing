@@ -83,6 +83,42 @@ Route Tables                 Security Groups
 4. **Testing & Validation**: Comprehensive testing of private connectivity
 5. **Gradual Cutover**: Phased migration with fallback to internet
 
+### 🔧 New Feature: Connectivity Selection
+Starting with v2.0.0, administrators can choose their preferred connectivity method:
+
+#### Configuration Options
+```bash
+# Deploy with connectivity choice
+./deploy-mvp.sh --connectivity-type [internet|vpn|direct-connect]
+
+# Environment variable configuration
+export CROSS_PARTITION_CONNECTIVITY="vpn"
+./deploy-mvp.sh
+```
+
+#### Supported Connectivity Types
+- **`internet`**: Uses public internet with HTTPS (v1.0.0 compatibility)
+- **`vpn`**: Uses Site-to-Site VPN with private routing (v2.0.0 default)
+- **`direct-connect`**: Uses AWS Direct Connect (v3.0.0, requires infrastructure)
+
+#### Runtime Switching
+```bash
+# Switch connectivity method without redeployment
+aws ssm put-parameter \
+  --name "/cross-partition/connectivity-type" \
+  --value "vpn" \
+  --type "String" \
+  --profile govcloud
+
+# Lambda automatically detects and routes accordingly
+```
+
+#### Intelligent Failover
+- **Primary**: Configured connectivity method (VPN or Direct Connect)
+- **Secondary**: Automatic fallback to internet if primary fails
+- **Health Checks**: Continuous monitoring of all connectivity paths
+- **Automatic Recovery**: Switch back to primary when available
+
 ---
 
 ## 🏢 Version 3.0.0: "Direct Connect" - 🚧 PLANNED
@@ -200,6 +236,75 @@ Dedicated Bandwidth         Dedicated Bandwidth
 
 ## 🔧 Technical Implementation Details
 
+### v2.0.0 Connectivity Selection System
+
+#### Configuration Management
+Starting with v2.0.0, the system supports multiple connectivity options through a centralized configuration system:
+
+```python
+# Lambda function connectivity detection
+def get_connectivity_config():
+    """Determine which connectivity method to use"""
+    try:
+        # Check SSM Parameter for runtime configuration
+        ssm = boto3.client('ssm')
+        response = ssm.get_parameter(
+            Name='/cross-partition/connectivity-type'
+        )
+        connectivity_type = response['Parameter']['Value']
+    except:
+        # Fallback to environment variable
+        connectivity_type = os.environ.get('CONNECTIVITY_TYPE', 'internet')
+    
+    return {
+        'internet': use_internet_routing,
+        'vpn': use_vpn_routing,
+        'direct-connect': use_direct_connect_routing
+    }.get(connectivity_type, use_internet_routing)
+
+def route_bedrock_request(request_data):
+    """Route request based on connectivity configuration"""
+    connectivity_handler = get_connectivity_config()
+    
+    try:
+        # Try primary connectivity method
+        return connectivity_handler(request_data)
+    except Exception as e:
+        logger.warning(f"Primary connectivity failed: {e}")
+        # Automatic failover to internet
+        return use_internet_routing(request_data)
+```
+
+#### Deployment Configuration
+```bash
+# CloudFormation parameter for connectivity selection
+Parameters:
+  ConnectivityType:
+    Type: String
+    Default: vpn
+    AllowedValues: [internet, vpn, direct-connect]
+    Description: Choose connectivity method for cross-partition communication
+
+# Conditional resource creation based on connectivity type
+Conditions:
+  UseVPN: !Equals [!Ref ConnectivityType, vpn]
+  UseDirectConnect: !Equals [!Ref ConnectivityType, direct-connect]
+  UseInternet: !Equals [!Ref ConnectivityType, internet]
+
+Resources:
+  VPNGateway:
+    Type: AWS::EC2::VpnGateway
+    Condition: UseVPN
+    Properties:
+      Type: ipsec.1
+      
+  DirectConnectGateway:
+    Type: AWS::DirectConnect::DirectConnectGateway
+    Condition: UseDirectConnect
+    Properties:
+      Name: cross-partition-dxgw
+```
+
 ### v2.0.0 VPN Implementation
 
 #### GovCloud VPN Setup
@@ -252,6 +357,90 @@ aws directconnect create-private-virtual-interface \
     asn=65000 \
     customerAddress=192.168.1.1/30 \
     amazonAddress=192.168.1.2/30
+```
+
+## 🚀 Deployment Commands by Version
+
+### v2.0.0+ Deployment with Connectivity Selection
+
+#### Quick Deployment Options
+```bash
+# Deploy with VPN (default for v2.0.0)
+./deploy-mvp.sh
+
+# Deploy with specific connectivity type
+./deploy-mvp.sh --connectivity internet
+./deploy-mvp.sh --connectivity vpn  
+./deploy-mvp.sh --connectivity direct-connect
+
+# Deploy with advanced options
+./deploy-mvp.sh \
+  --connectivity vpn \
+  --enable-failover \
+  --monitoring enhanced \
+  --region us-gov-west-1
+```
+
+#### Configuration File Deployment
+```yaml
+# connectivity-config.yaml
+connectivity:
+  primary: vpn
+  failover: internet
+  health_check_interval: 30
+  retry_attempts: 3
+  
+vpn:
+  customer_gateway_ip: "203.0.113.12"
+  bgp_asn: 65000
+  tunnel_count: 2
+  
+direct_connect:
+  connection_id: "dxcon-fg5678gh"
+  vlan: 100
+  bgp_asn: 65001
+
+# Deploy with configuration file
+./deploy-mvp.sh --config connectivity-config.yaml
+```
+
+#### Runtime Configuration Changes
+```bash
+# Change connectivity without redeployment
+aws ssm put-parameter \
+  --name "/cross-partition/connectivity-type" \
+  --value "direct-connect" \
+  --overwrite \
+  --profile govcloud
+
+# Enable/disable failover
+aws ssm put-parameter \
+  --name "/cross-partition/enable-failover" \
+  --value "true" \
+  --type "String" \
+  --profile govcloud
+
+# Check current configuration
+aws ssm get-parameters \
+  --names "/cross-partition/connectivity-type" "/cross-partition/enable-failover" \
+  --profile govcloud
+```
+
+#### Monitoring and Health Checks
+```bash
+# Check connectivity status
+./test-connectivity.sh --all
+
+# Test specific connectivity method
+./test-connectivity.sh --type vpn
+./test-connectivity.sh --type direct-connect
+./test-connectivity.sh --type internet
+
+# Monitor failover events
+aws logs filter-log-events \
+  --log-group-name /aws/lambda/CrossPartitionInferenceProxy \
+  --filter-pattern "failover" \
+  --profile govcloud
 ```
 
 ## 🔄 Version Upgrade Paths
@@ -358,28 +547,45 @@ aws directconnect create-private-virtual-interface \
 - 🎯 **Redundancy**: Multiple secure paths
 - 🎯 **Control**: Complete network path visibility
 
-## 🎯 Decision Matrix: Which Version to Choose?
+## 🎯 Decision Matrix: Which Version and Connectivity to Choose?
 
-### Choose v1.0.0 (Internet) If:
+### Choose v1.0.0 (Internet Only) If:
 - ✅ Quick deployment needed (days)
 - ✅ Low to medium data volumes (<1GB/month)
 - ✅ Standard security requirements
 - ✅ Limited networking expertise
 - ✅ Cost-sensitive deployment
+- ✅ No advanced networking infrastructure
 
-### Choose v2.0.0 (VPN) If:
+### Choose v2.0.0+ with Internet Connectivity If:
+- 🎯 Want latest features but simple networking
+- 🎯 Need failover capabilities
+- 🎯 Plan to upgrade to VPN/Direct Connect later
+- 🎯 Testing and development environments
+- 🎯 Temporary or proof-of-concept deployments
+
+### Choose v2.0.0+ with VPN Connectivity If:
 - 🎯 Enhanced security required
 - 🎯 Medium data volumes (1-40GB/month)
-- 🎯 Existing VPN infrastructure
+- 🎯 Existing VPN infrastructure or can deploy VPN
 - 🎯 Predictable performance needed
 - 🎯 Compliance requirements for private connectivity
+- 🎯 Want automatic failover to internet
 
-### Choose v3.0.0 (Direct Connect) If:
+### Choose v2.0.0+ with Direct Connect If:
 - 🎯 Maximum security and compliance required
 - 🎯 High data volumes (>40GB/month)
 - 🎯 Existing Direct Connect infrastructure
 - 🎯 Predictable, low-latency performance critical
 - 🎯 Enterprise-grade requirements
+- 🎯 Multi-path redundancy needed
+
+### 🔄 Connectivity Selection Benefits (v2.0.0+)
+- **Flexibility**: Change connectivity method without redeployment
+- **Failover**: Automatic fallback to internet if primary fails
+- **Testing**: Test different connectivity methods easily
+- **Migration**: Gradual migration from internet to private connectivity
+- **Cost Optimization**: Switch based on usage patterns and costs
 
 ## 📅 Release Timeline
 
