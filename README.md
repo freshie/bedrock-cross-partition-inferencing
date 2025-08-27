@@ -1,6 +1,6 @@
-# Cross-Partition Bedrock Inference Proxy
+# Cross-Partition Bedrock Inference: Multi-Option Reference Architecture
 
-🚀 **Enable AWS GovCloud applications to access Commercial Bedrock models through a secure, compliant proxy**
+🚀 **Comprehensive reference implementation demonstrating three architectural approaches for enabling AWS GovCloud applications to access Commercial Bedrock models**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/freshie/bedrock-cross-partition-inferencing?style=social)](https://github.com/freshie/bedrock-cross-partition-inferencing/stargazers)
@@ -26,13 +26,23 @@ Government agencies and regulated industries operating in AWS GovCloud face a cr
 
 **This solution bridges that gap securely**, enabling access to cutting-edge models like Claude 4.1, Nova Premier, and Llama 4 while maintaining compliance.
 
-## 🏗️ **Architecture Overview: Three Implementation Options**
+## 🏗️ **What This Repository Demonstrates**
 
-This solution provides three architectural approaches, allowing organizations to choose based on their security requirements, performance needs, and implementation timeline.
+This repository serves as a **comprehensive reference architecture** showcasing three distinct approaches to cross-partition AI inference. Rather than being a single solution, it's designed to demonstrate multiple connectivity patterns that organizations can evaluate and implement based on their specific requirements.
 
-### 🚀 **Current Implementation: Option 1 - Over the Internet (v1.1.0)**
+**Repository Purpose:**
+- 📚 **Reference Implementation**: Complete, working examples of each architectural approach
+- 🔬 **Comparative Analysis**: Side-by-side evaluation of security, performance, and complexity trade-offs  
+- 🛠️ **Production-Ready Code**: Fully functional implementations, not just conceptual diagrams
+- 📖 **Best Practices Guide**: Documented patterns for cross-partition connectivity
 
-*This is the MVP approach currently implemented in this repository*
+## 🏗️ **Three Architectural Options Demonstrated**
+
+Each approach addresses different organizational needs, security postures, and implementation timelines:
+
+### 🚀 **Option 1: Internet-Based Connectivity (Currently Implemented)**
+
+*Fastest path to cross-partition AI access - ideal for rapid prototyping and initial validation*
 
 ![Cross-Partition Inference Architecture - Over Internet](docs/images/cross-partition-inference-architecture-over-internet.drawio.png)
 
@@ -44,26 +54,50 @@ The internet-based approach provides the fastest path to cross-partition AI acce
 3. **HTTPS calls** to Amazon Bedrock in the commercial partition over the public internet
 4. **Comprehensive logging** through CloudWatch for audit and monitoring requirements
 
-### 🔮 **Future Options (Roadmap)**
+### 🔐 **Option 2: Site-to-Site VPN Connectivity (Reference Implementation)**
 
-#### Option 2: Site-to-Site VPN (v2.0.0 - Planned)
+*Enhanced security through encrypted tunnels - ideal for production workloads requiring private connectivity*
+
 ![Cross-Partition Inference Architecture - VPN](docs/images/cross-partition-inference-architecture-vpn.drawio.png)
 
-Enhanced security through encrypted tunnels between AWS partitions with private subnet deployment and VPC endpoints.
+**Key Features:**
+- Private subnet deployment with VPC endpoints
+- Encrypted tunnels between AWS partitions  
+- Network-level isolation and security
+- Suitable for consistent performance requirements
 
-#### Option 3: AWS Direct Connect (v3.0.0 - Planned)  
+### 🏢 **Option 3: AWS Direct Connect (Enterprise Reference)**
+
+*Maximum performance and security - ideal for high-volume, mission-critical applications*
+
 ![Cross-Partition Inference Architecture - Direct Connect](docs/images/cross-partition-inference-architecture-direct-connect.drawio.png)
 
-Enterprise-grade solution with dedicated private network connections for maximum performance and security.
+**Key Features:**
+- Dedicated private network connections
+- Highest bandwidth and lowest latency
+- Enterprise-grade reliability and performance
+- Supports high-volume AI inference workloads
 
-## ⚡ **What This Version Does (v1.2.0)**
+## ⚡ **Current Implementation Status**
 
-### 🎯 **Current Capabilities**
+### ✅ **Option 1: Internet-Based (Fully Implemented)**
+- ✅ **Complete Working Solution**: Deploy and use immediately
 - ✅ **Cross-Partition AI Access**: GovCloud apps can use Claude 4.1, Nova Premier, Llama 4
 - ✅ **Production Ready**: Complete infrastructure with monitoring and security
-- ✅ **Internet-Based**: Uses HTTPS over public internet (encrypted and secure)
+- ✅ **Rapid Deployment**: Deploy in 1-2 hours with full automation
 - ✅ **Cost Effective**: ~$5-20/month for typical usage
-- ✅ **Rapid Deployment**: Deploy in 1-2 hours, not weeks
+
+### 🔄 **Option 2: VPN-Based (Reference Design)**
+- 📋 **Architecture Documentation**: Complete design patterns and CloudFormation templates
+- 📋 **Implementation Guide**: Step-by-step deployment instructions
+- 📋 **Security Analysis**: Detailed security model and compliance considerations
+- 📋 **Performance Benchmarks**: Expected latency and throughput characteristics
+
+### 📋 **Option 3: Direct Connect (Enterprise Reference)**
+- 📋 **Enterprise Architecture**: Comprehensive design for high-scale deployments
+- 📋 **Cost Analysis**: Detailed TCO modeling and ROI calculations
+- 📋 **Implementation Roadmap**: Phased deployment strategy for large organizations
+- 📋 **Compliance Framework**: Mapping to FedRAMP, FISMA, and other standards
 
 ### 🚀 **Supported AI Models**
 - **Claude 4.1**: Latest Anthropic model with advanced reasoning
@@ -140,6 +174,29 @@ aws secretsmanager update-secret \
 
 📖 **For detailed setup instructions, see [Setup Guide](docs/SETUP_GUIDE.md)**
 
+## 🎯 **Repository Structure & Navigation**
+
+This repository is organized to support multiple implementation approaches:
+
+```
+├── option-1-internet/          # Internet-based implementation (ACTIVE)
+│   ├── infrastructure/         # CloudFormation templates
+│   ├── lambda/                # Lambda function code  
+│   └── tests/                 # Test scripts and validation
+├── option-2-vpn/              # VPN-based reference (DESIGN)
+│   ├── architecture/          # Design documents and diagrams
+│   ├── cloudformation/        # VPN infrastructure templates
+│   └── docs/                  # Implementation guides
+├── option-3-direct-connect/   # Direct Connect reference (PLANNING)
+│   ├── enterprise-architecture/ # High-level design patterns
+│   ├── cost-analysis/         # TCO models and ROI calculations
+│   └── compliance/            # Regulatory framework mapping
+└── shared/                    # Common components across all options
+    ├── monitoring/            # CloudWatch dashboards and alarms
+    ├── security/              # IAM policies and security configs
+    └── docs/                  # Cross-cutting documentation
+```
+
 ## 📖 **Usage Examples**
 
 ### Python Client
@@ -182,30 +239,41 @@ curl -X POST "$API_BASE_URL/bedrock/invoke-model" \
   }'
 ```
 
-## 🗺️ **Implementation Roadmap**
+## 🗺️ **Reference Architecture Approach**
 
-We recommend a three-phase implementation strategy that allows organizations to start quickly while building toward enterprise-grade capabilities:
+This repository demonstrates a **progressive implementation strategy** where organizations can:
 
-### Phase 1: MVP Deployment ✅ **CURRENT** 
-**v1.1.0 "Over the Internet" (Weeks 1-4)**
-- ✅ Basic cross-partition AI access using internet-based architecture
-- ✅ Validate functionality and gather initial performance metrics
-- ✅ **Rapid Implementation**: Can be deployed in 1-2 weeks
-- ✅ **Cost Effective**: Minimal infrastructure with pay-per-use model
+### 🚀 **Start Simple, Scale Smart**
+**Option 1: Internet-Based (Currently Implemented)**
+- ✅ **Rapid Validation**: Deploy and test in 1-2 hours
+- ✅ **Minimal Infrastructure**: Serverless, pay-per-use model
+- ✅ **Proof of Concept**: Validate AI model access and functionality
+- ✅ **Cost Effective**: ~$5-20/month for typical usage
 
-### Phase 2: VPN Enhancement 🔄 **PLANNED**
-**v2.0.0 "Site-to-Site VPN" (Weeks 5-12)**
-- 🔄 Implement Site-to-Site VPN architecture
-- 🔄 Improve security and performance for production workloads
-- 🔄 **Enhanced Security**: All traffic through private, encrypted tunnels
-- 🔄 **Production Ready**: Suitable for consistent performance needs
+### 🔐 **Enhance Security**  
+**Option 2: VPN-Based (Reference Implementation)**
+- 🔄 **Private Connectivity**: All traffic through encrypted tunnels
+- 🔄 **Network Isolation**: VPC-to-VPC communication only
+- 🔄 **Production Ready**: Suitable for sensitive workloads
+- 🔄 **Consistent Performance**: Dedicated bandwidth allocation
 
-### Phase 3: Direct Connect Optimization 📋 **FUTURE**
-**v3.0.0 "AWS Direct Connect" (Weeks 13-32)**
-- 📋 Deploy Direct Connect infrastructure
-- 📋 Highest-volume, most critical applications
-- 📋 **Maximum Performance**: High bandwidth, low-latency connections
-- 📋 **Enterprise Scale**: Supports high-volume AI inference applications
+### 🏢 **Scale to Enterprise**
+**Option 3: Direct Connect (Enterprise Reference)**
+- 📋 **Maximum Performance**: High bandwidth, low-latency connections  
+- 📋 **Enterprise Reliability**: SLA-backed connectivity
+- 📋 **High Volume**: Supports thousands of concurrent AI requests
+- 📋 **Regulatory Compliance**: Meets strictest security requirements
+
+## 🎯 **Choosing Your Implementation Path**
+
+| Requirement | Internet-Based | VPN-Based | Direct Connect |
+|-------------|----------------|-----------|----------------|
+| **Time to Deploy** | 1-2 hours | 1-2 days | 2-4 weeks |
+| **Monthly Cost** | $5-20 | $50-200 | $500-2000+ |
+| **Security Level** | High | Very High | Maximum |
+| **Performance** | Good | Better | Best |
+| **Complexity** | Low | Medium | High |
+| **Use Case** | PoC, Testing | Production | Enterprise |
 
 ## 🎯 **Benefits of Cross-Partition AI Implementation**
 
