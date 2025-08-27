@@ -10,7 +10,7 @@
 
 [![AWS](https://img.shields.io/badge/AWS-GovCloud%20%2B%20Commercial-orange)](https://aws.amazon.com/)
 [![Bedrock](https://img.shields.io/badge/Amazon-Bedrock-blue)](https://aws.amazon.com/bedrock/)
-[![Version](https://img.shields.io/badge/Version-1.0.0%20Over%20Internet-green)](https://github.com/freshie/bedrock-cross-partition-inferencing/releases)
+[![Version](https://img.shields.io/badge/Version-1.1.0%20GitHub%20Ready-green)](https://github.com/freshie/bedrock-cross-partition-inferencing/releases)
 [![Serverless](https://img.shields.io/badge/Serverless-Lambda%20%2B%20API%20Gateway-blueviolet)](https://aws.amazon.com/serverless/)
 [![Security](https://img.shields.io/badge/Security-IAM%20%2B%20Secrets%20Manager-red)](https://aws.amazon.com/security/)
 
@@ -30,7 +30,7 @@ Government agencies and regulated industries operating in AWS GovCloud face a cr
 
 This solution provides three architectural approaches, allowing organizations to choose based on their security requirements, performance needs, and implementation timeline.
 
-### 🚀 **Current Implementation: Option 1 - Over the Internet (v1.0.0)**
+### 🚀 **Current Implementation: Option 1 - Over the Internet (v1.1.0)**
 
 *This is the MVP approach currently implemented in this repository*
 
@@ -56,7 +56,7 @@ Enhanced security through encrypted tunnels between AWS partitions with private 
 
 Enterprise-grade solution with dedicated private network connections for maximum performance and security.
 
-## ⚡ **What This Version Does (v1.0.0)**
+## ⚡ **What This Version Does (v1.1.0)**
 
 ### 🎯 **Current Capabilities**
 - ✅ **Cross-Partition AI Access**: GovCloud apps can use Claude 4.1, Nova Premier, Llama 4
@@ -169,7 +169,7 @@ curl -X POST "https://your-api-id.execute-api.us-east-1.amazonaws.com/v1/bedrock
 We recommend a three-phase implementation strategy that allows organizations to start quickly while building toward enterprise-grade capabilities:
 
 ### Phase 1: MVP Deployment ✅ **CURRENT** 
-**v1.0.0 "Over the Internet" (Weeks 1-4)**
+**v1.1.0 "Over the Internet" (Weeks 1-4)**
 - ✅ Basic cross-partition AI access using internet-based architecture
 - ✅ Validate functionality and gather initial performance metrics
 - ✅ **Rapid Implementation**: Can be deployed in 1-2 weeks
