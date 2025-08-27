@@ -5,25 +5,49 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![AWS](https://img.shields.io/badge/AWS-GovCloud%20%2B%20Commercial-orange)](https://aws.amazon.com/)
 [![Bedrock](https://img.shields.io/badge/Amazon-Bedrock-blue)](https://aws.amazon.com/bedrock/)
+[![Version](https://img.shields.io/badge/Version-1.0.0%20Over%20Internet-green)](https://github.com/freshie/bedrock-cross-partition-inferencing/releases)
 
-## 🎯 **What This Solves**
+## 🎯 **The Challenge: Bridging the AI Gap**
 
-AWS GovCloud provides isolated infrastructure for sensitive workloads, but Amazon Bedrock's latest AI models (Claude 4.1, Nova Premier, Llama 4) are only available in Commercial AWS regions. This proxy bridges that gap securely.
+Government agencies and regulated industries operating in AWS GovCloud face a critical challenge: accessing the latest AI models available in AWS Commercial partition. While AWS GovCloud provides essential security and compliance features, it has limited availability of generative AI services like Amazon Bedrock compared to the commercial partition.
 
-## 🏗️ **Architecture**
+**Key Challenges:**
+- 🚫 **Limited AI Model Availability**: Fewer Amazon Bedrock models in GovCloud
+- ⏰ **Delayed Rollouts**: New AI services arrive later in GovCloud
+- 🔒 **Compliance Requirements**: Must maintain strict data governance
+- 🚀 **Innovation Constraints**: Slower adoption affects mission-critical applications
 
-```
-┌─────────────────┐    HTTPS/TLS    ┌──────────────────┐    Bedrock API    ┌─────────────────┐
-│   GovCloud      │ ──────────────► │  Commercial AWS  │ ─────────────────► │   Bedrock       │
-│   Application   │                 │   API Gateway    │                    │   Models        │
-└─────────────────┘                 └──────────────────┘                    └─────────────────┘
-                                             │
-                                             ▼
-                                    ┌──────────────────┐
-                                    │   Lambda Proxy   │
-                                    │   + Secrets Mgr  │
-                                    └──────────────────┘
-```
+**This solution bridges that gap securely**, enabling access to cutting-edge models like Claude 4.1, Nova Premier, and Llama 4 while maintaining compliance.
+
+## 🏗️ **Architecture Overview: Three Implementation Options**
+
+This solution provides three architectural approaches, allowing organizations to choose based on their security requirements, performance needs, and implementation timeline.
+
+### 🚀 **Current Implementation: Option 1 - Over the Internet (v1.0.0)**
+
+*This is the MVP approach currently implemented in this repository*
+
+![Cross-Partition Inference Architecture - Over Internet](docs/images/cross-partition-inference-architecture-over-internet.drawio.png)
+
+The internet-based approach provides the fastest path to cross-partition AI access using HTTPS connections over the public internet, prioritizing speed of implementation while maintaining essential security controls.
+
+**Architecture Flow:**
+1. **GovCloud applications** send requests to API Gateway for authentication and routing
+2. **Lambda function** acts as a cross-partition proxy, retrieving credentials from Secrets Manager  
+3. **HTTPS calls** to Amazon Bedrock in the commercial partition over the public internet
+4. **Comprehensive logging** through CloudWatch for audit and monitoring requirements
+
+### 🔮 **Future Options (Roadmap)**
+
+#### Option 2: Site-to-Site VPN (v2.0.0 - Planned)
+![Cross-Partition Inference Architecture - VPN](docs/images/cross-partition-inference-architecture-vpn.drawio.png)
+
+Enhanced security through encrypted tunnels between AWS partitions with private subnet deployment and VPC endpoints.
+
+#### Option 3: AWS Direct Connect (v3.0.0 - Planned)  
+![Cross-Partition Inference Architecture - Direct Connect](docs/images/cross-partition-inference-architecture-direct-connect.drawio.png)
+
+Enterprise-grade solution with dedicated private network connections for maximum performance and security.
 
 ## ✨ **Features**
 
@@ -110,11 +134,42 @@ curl -X POST "https://your-api-id.execute-api.us-east-1.amazonaws.com/v1/bedrock
   }'
 ```
 
-## 🗺️ **Roadmap**
+## 🗺️ **Implementation Roadmap**
 
-- **v1.0** ✅ Internet connectivity (current)
-- **v2.0** 🔄 VPN connectivity option
-- **v3.0** 📋 AWS Direct Connect support
+We recommend a three-phase implementation strategy that allows organizations to start quickly while building toward enterprise-grade capabilities:
+
+### Phase 1: MVP Deployment ✅ **CURRENT** 
+**v1.0.0 "Over the Internet" (Weeks 1-4)**
+- ✅ Basic cross-partition AI access using internet-based architecture
+- ✅ Validate functionality and gather initial performance metrics
+- ✅ **Rapid Implementation**: Can be deployed in 1-2 weeks
+- ✅ **Cost Effective**: Minimal infrastructure with pay-per-use model
+
+### Phase 2: VPN Enhancement 🔄 **PLANNED**
+**v2.0.0 "Site-to-Site VPN" (Weeks 5-12)**
+- 🔄 Implement Site-to-Site VPN architecture
+- 🔄 Improve security and performance for production workloads
+- 🔄 **Enhanced Security**: All traffic through private, encrypted tunnels
+- 🔄 **Production Ready**: Suitable for consistent performance needs
+
+### Phase 3: Direct Connect Optimization 📋 **FUTURE**
+**v3.0.0 "AWS Direct Connect" (Weeks 13-32)**
+- 📋 Deploy Direct Connect infrastructure
+- 📋 Highest-volume, most critical applications
+- 📋 **Maximum Performance**: High bandwidth, low-latency connections
+- 📋 **Enterprise Scale**: Supports high-volume AI inference applications
+
+## 🎯 **Benefits of Cross-Partition AI Implementation**
+
+**🚀 Access to Cutting-Edge AI**: Immediate access to latest AI models (Claude 4.1, Nova Premier, Llama 4) while maintaining compliance posture
+
+**🔒 Maintained Compliance**: All data handling meets government security standards through comprehensive encryption, network isolation, and audit logging
+
+**⚡ Operational Efficiency**: Unified management experience across partitions using familiar AWS tools and services
+
+**💰 Cost Optimization**: Access commercial partition capabilities without duplicating infrastructure
+
+**🔬 Innovation Enablement**: Rapidly adopt new AI capabilities as they become available while meeting security obligations
 
 ## 📁 **Project Structure**
 
@@ -168,13 +223,24 @@ curl -X POST "https://your-api-id.execute-api.us-east-1.amazonaws.com/v1/bedrock
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## 📖 **Background: Unlocking Commercial AI Models in AWS GovCloud**
+
+This project addresses a critical challenge faced by government agencies and regulated industries: accessing the latest AI models while operating within AWS GovCloud's security and compliance boundaries. 
+
+**The Problem**: Digital transformation initiatives across government agencies increasingly rely on AI, but AWS GovCloud has limited availability of generative AI services compared to the commercial partition. This creates barriers to AI innovation for organizations that must operate within strict compliance boundaries.
+
+**Our Solution**: A comprehensive cross-partition AI inference architecture that enables GovCloud applications to securely access Amazon Bedrock services in the AWS Commercial partition while maintaining data sovereignty and meeting all compliance requirements.
+
+For a detailed analysis of the challenges, solution approaches, and implementation strategy, see our comprehensive blog post: [Unlocking Commercial AI Models in AWS GovCloud: Secure Cross-Partition Access for Government Workloads](cross-partition-ai-inference-blog.md)
+
 ## ⚠️ **Disclaimer**
 
-This is an educational/demonstration project. For production use:
+This is an educational/demonstration project showcasing cross-partition AI inference patterns. For production use:
 - Review security requirements with your security team
-- Implement additional monitoring and alerting
+- Implement additional monitoring and alerting  
 - Consider compliance requirements (FedRAMP, etc.)
 - Test thoroughly in your environment
+- Validate against your organization's data governance policies
 
 ## 🆘 **Support**
 
