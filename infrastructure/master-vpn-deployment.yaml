@@ -1,0 +1,708 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Master CloudFormation template orchestrating all VPN connectivity components'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'prod'
+    AllowedValues: ['dev', 'staging', 'prod']
+    Description: 'Environment name for resource tagging'
+  
+  ProjectName:
+    Type: String
+    Default: 'cross-partition-vpn'
+    Description: 'Project name for resource naming'
+
+  # VPN Configuration Parameters
+  GovCloudCustomerGatewayIP:
+    Type: String
+    Description: 'Public IP address for GovCloud Customer Gateway'
+    AllowedPattern: '^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$'
+    ConstraintDescription: 'Must be a valid IP address'
+
+  CommercialCustomerGatewayIP:
+    Type: String
+    Description: 'Public IP address for Commercial Customer Gateway'
+    AllowedPattern: '^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$'
+    ConstraintDescription: 'Must be a valid IP address'
+
+  Tunnel1PreSharedKey:
+    Type: String
+    NoEcho: true
+    Description: 'Pre-shared key for VPN tunnel 1 (minimum 8 characters)'
+    MinLength: 8
+    MaxLength: 64
+
+  Tunnel2PreSharedKey:
+    Type: String
+    NoEcho: true
+    Description: 'Pre-shared key for VPN tunnel 2 (minimum 8 characters)'
+    MinLength: 8
+    MaxLength: 64
+
+  # Alert Configuration
+  AlertEmail:
+    Type: String
+    Description: 'Email address for critical alerts'
+    Default: 'admin@example.com'
+
+  SlackWebhookUrl:
+    Type: String
+    Description: 'Slack webhook URL for notifications (optional)'
+    Default: ''
+    NoEcho: true
+
+  # Compliance Configuration
+  ComplianceFramework:
+    Type: String
+    Default: 'FedRAMP'
+    AllowedValues: ['FedRAMP', 'NIST', 'SOC2', 'FISMA']
+    Description: 'Compliance framework to track'
+
+  # Lambda Configuration
+  CommercialCredentialsSecret:
+    Type: String
+    Default: 'cross-partition-commercial-creds'
+    Description: 'Name of the Secrets Manager secret containing commercial credentials'
+
+  RequestLogTable:
+    Type: String
+    Default: 'cross-partition-requests'
+    Description: 'Name of the DynamoDB table for request logging'
+
+  # Deployment Configuration
+  DeploymentPhase:
+    Type: String
+    Default: 'full'
+    AllowedValues: ['vpc-only', 'endpoints-only', 'vpn-only', 'lambda-only', 'monitoring-only', 'security-only', 'full']
+    Description: 'Deployment phase to control which components are deployed'
+
+Conditions:
+  DeployVPC: !Or
+    - !Equals [!Ref DeploymentPhase, 'vpc-only']
+    - !Equals [!Ref DeploymentPhase, 'full']
+  
+  DeployEndpoints: !Or
+    - !Equals [!Ref DeploymentPhase, 'endpoints-only']
+    - !Equals [!Ref DeploymentPhase, 'full']
+  
+  DeployVPN: !Or
+    - !Equals [!Ref DeploymentPhase, 'vpn-only']
+    - !Equals [!Ref DeploymentPhase, 'full']
+  
+  DeployLambda: !Or
+    - !Equals [!Ref DeploymentPhase, 'lambda-only']
+    - !Equals [!Ref DeploymentPhase, 'full']
+  
+  DeployMonitoring: !Or
+    - !Equals [!Ref DeploymentPhase, 'monitoring-only']
+    - !Equals [!Ref DeploymentPhase, 'full']
+  
+  DeploySecurity: !Or
+    - !Equals [!Ref DeploymentPhase, 'security-only']
+    - !Equals [!Ref DeploymentPhase, 'full']
+
+  HasSlackWebhook: !Not [!Equals [!Ref SlackWebhookUrl, '']]
+  IsProduction: !Equals [!Ref Environment, 'prod']
+
+Resources:
+  # Phase 1: VPC Infrastructure
+  VPCInfrastructure:
+    Type: AWS::CloudFormation::Stack
+    Condition: DeployVPC
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${DeploymentBucket}/templates/vpn-govcloud-vpc.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+      Tags:
+        - Key: Phase
+          Value: '1-vpc'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Phase 2: VPC Endpoints
+  VPCEndpoints:
+    Type: AWS::CloudFormation::Stack
+    Condition: DeployEndpoints
+    DependsOn: VPCInfrastructure
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${DeploymentBucket}/templates/vpn-govcloud-endpoints.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        VPCStackName: !GetAtt VPCInfrastructure.Outputs.StackName
+      Tags:
+        - Key: Phase
+          Value: '2-endpoints'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Phase 3: VPN Gateway
+  VPNGateway:
+    Type: AWS::CloudFormation::Stack
+    Condition: DeployVPN
+    DependsOn: VPCEndpoints
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${DeploymentBucket}/templates/vpn-gateway.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        GovCloudVPCStackName: !GetAtt VPCInfrastructure.Outputs.StackName
+        CommercialVPCStackName: !Sub '${ProjectName}-commercial-vpc'  # Assumes commercial stack exists
+        GovCloudCustomerGatewayIP: !Ref GovCloudCustomerGatewayIP
+        CommercialCustomerGatewayIP: !Ref CommercialCustomerGatewayIP
+        Tunnel1PreSharedKey: !Ref Tunnel1PreSharedKey
+        Tunnel2PreSharedKey: !Ref Tunnel2PreSharedKey
+        GovCloudBGPASN: 65000
+        CommercialBGPASN: 65001
+      Tags:
+        - Key: Phase
+          Value: '3-vpn'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Phase 4: VPN Connectivity Validation
+  VPNValidation:
+    Type: AWS::CloudFormation::Stack
+    Condition: DeployVPN
+    DependsOn: VPNGateway
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${DeploymentBucket}/templates/vpn-connectivity-validation.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        VPCStackName: !GetAtt VPCInfrastructure.Outputs.StackName
+        VPNGatewayStackName: !GetAtt VPNGateway.Outputs.StackName
+      Tags:
+        - Key: Phase
+          Value: '4-validation'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Phase 5: Lambda Function
+  LambdaFunction:
+    Type: AWS::CloudFormation::Stack
+    Condition: DeployLambda
+    DependsOn: VPCEndpoints
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${DeploymentBucket}/templates/vpn-lambda-function.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        VPCStackName: !GetAtt VPCInfrastructure.Outputs.StackName
+        VPCEndpointsStackName: !GetAtt VPCEndpoints.Outputs.StackName
+        CommercialCredentialsSecret: !Ref CommercialCredentialsSecret
+        RequestLogTable: !Ref RequestLogTable
+      Tags:
+        - Key: Phase
+          Value: '5-lambda'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Phase 6: Security Controls
+  SecurityControls:
+    Type: AWS::CloudFormation::Stack
+    Condition: DeploySecurity
+    DependsOn: VPNGateway
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${DeploymentBucket}/templates/vpn-security-controls.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        VPCStackName: !GetAtt VPCInfrastructure.Outputs.StackName
+        VPNGatewayStackName: !GetAtt VPNGateway.Outputs.StackName
+        TrustedCIDRBlocks: '10.0.0.0/16,172.16.0.0/16'
+        AllowedPorts: '443,80'
+      Tags:
+        - Key: Phase
+          Value: '6-security'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Phase 7: Audit and Compliance
+  AuditCompliance:
+    Type: AWS::CloudFormation::Stack
+    Condition: DeploySecurity
+    DependsOn: SecurityControls
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${DeploymentBucket}/templates/vpn-audit-compliance.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        ComplianceFramework: !Ref ComplianceFramework
+        AuditRetentionDays: !If [IsProduction, 2555, 365]  # 7 years for prod, 1 year for non-prod
+      Tags:
+        - Key: Phase
+          Value: '7-audit'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Phase 8: Monitoring and Alerting
+  MonitoringAlerting:
+    Type: AWS::CloudFormation::Stack
+    Condition: DeployMonitoring
+    DependsOn: LambdaFunction
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${DeploymentBucket}/templates/vpn-monitoring-alerting.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        AlertEmail: !Ref AlertEmail
+        SlackWebhookUrl: !Ref SlackWebhookUrl
+      Tags:
+        - Key: Phase
+          Value: '8-monitoring'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # S3 Bucket for deployment artifacts
+  DeploymentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-deployment-${AWS::AccountId}-${AWS::Region}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeploymentArtifactsRetention
+            Status: Enabled
+            ExpirationInDays: 90
+            NoncurrentVersionExpirationInDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-deployment-bucket'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Lambda function for deployment orchestration
+  DeploymentOrchestratorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-deployment-orchestrator'
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt DeploymentOrchestratorRole.Arn
+      Timeout: 900  # 15 minutes
+      MemorySize: 512
+      Environment:
+        Variables:
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
+          DEPLOYMENT_BUCKET: !Ref DeploymentBucket
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import time
+          from datetime import datetime
+          
+          def lambda_handler(event, context):
+              """Orchestrate VPN deployment phases"""
+              
+              cf = boto3.client('cloudformation')
+              s3 = boto3.client('s3')
+              
+              project_name = os.environ['PROJECT_NAME']
+              environment = os.environ['ENVIRONMENT']
+              deployment_bucket = os.environ['DEPLOYMENT_BUCKET']
+              
+              deployment_status = {
+                  'timestamp': datetime.utcnow().isoformat(),
+                  'project': project_name,
+                  'environment': environment,
+                  'phases': {}
+              }
+              
+              try:
+                  # Get deployment phase from event
+                  deployment_phase = event.get('deployment_phase', 'full')
+                  
+                  # Define deployment phases
+                  phases = [
+                      {'name': 'vpc', 'template': 'vpn-govcloud-vpc.yaml', 'dependencies': []},
+                      {'name': 'endpoints', 'template': 'vpn-govcloud-endpoints.yaml', 'dependencies': ['vpc']},
+                      {'name': 'vpn', 'template': 'vpn-gateway.yaml', 'dependencies': ['endpoints']},
+                      {'name': 'validation', 'template': 'vpn-connectivity-validation.yaml', 'dependencies': ['vpn']},
+                      {'name': 'lambda', 'template': 'vpn-lambda-function.yaml', 'dependencies': ['endpoints']},
+                      {'name': 'security', 'template': 'vpn-security-controls.yaml', 'dependencies': ['vpn']},
+                      {'name': 'audit', 'template': 'vpn-audit-compliance.yaml', 'dependencies': ['security']},
+                      {'name': 'monitoring', 'template': 'vpn-monitoring-alerting.yaml', 'dependencies': ['lambda']}
+                  ]
+                  
+                  # Filter phases based on deployment_phase parameter
+                  if deployment_phase != 'full':
+                      phases = [p for p in phases if p['name'] == deployment_phase.replace('-only', '')]
+                  
+                  # Execute deployment phases
+                  for phase in phases:
+                      phase_result = deploy_phase(cf, phase, project_name, environment, deployment_bucket)
+                      deployment_status['phases'][phase['name']] = phase_result
+                      
+                      if not phase_result['success']:
+                          break
+                  
+                  # Calculate overall success
+                  overall_success = all(p['success'] for p in deployment_status['phases'].values())
+                  deployment_status['overall_success'] = overall_success
+                  
+                  return {
+                      'statusCode': 200 if overall_success else 500,
+                      'body': json.dumps(deployment_status, indent=2)
+                  }
+              
+              except Exception as e:
+                  print(f"Error in deployment orchestration: {str(e)}")
+                  deployment_status['error'] = str(e)
+                  return {
+                      'statusCode': 500,
+                      'body': json.dumps(deployment_status, indent=2)
+                  }
+          
+          def deploy_phase(cf, phase, project_name, environment, deployment_bucket):
+              """Deploy individual phase"""
+              
+              phase_result = {
+                  'phase': phase['name'],
+                  'template': phase['template'],
+                  'start_time': datetime.utcnow().isoformat(),
+                  'success': False,
+                  'stack_name': f"{project_name}-{environment}-{phase['name']}"
+              }
+              
+              try:
+                  stack_name = phase_result['stack_name']
+                  template_url = f"https://s3.amazonaws.com/{deployment_bucket}/templates/{phase['template']}"
+                  
+                  # Check if stack exists
+                  try:
+                      cf.describe_stacks(StackName=stack_name)
+                      stack_exists = True
+                  except cf.exceptions.ClientError:
+                      stack_exists = False
+                  
+                  # Deploy or update stack
+                  if stack_exists:
+                      print(f"Updating stack: {stack_name}")
+                      response = cf.update_stack(
+                          StackName=stack_name,
+                          TemplateURL=template_url,
+                          Capabilities=['CAPABILITY_IAM']
+                      )
+                      operation = 'UPDATE'
+                  else:
+                      print(f"Creating stack: {stack_name}")
+                      response = cf.create_stack(
+                          StackName=stack_name,
+                          TemplateURL=template_url,
+                          Capabilities=['CAPABILITY_IAM'],
+                          Tags=[
+                              {'Key': 'Project', 'Value': project_name},
+                              {'Key': 'Environment', 'Value': environment},
+                              {'Key': 'Phase', 'Value': phase['name']}
+                          ]
+                      )
+                      operation = 'CREATE'
+                  
+                  # Wait for completion
+                  waiter_name = 'stack_create_complete' if operation == 'CREATE' else 'stack_update_complete'
+                  waiter = cf.get_waiter(waiter_name)
+                  waiter.wait(StackName=stack_name, WaiterConfig={'Delay': 30, 'MaxAttempts': 60})
+                  
+                  phase_result['success'] = True
+                  phase_result['operation'] = operation
+                  phase_result['end_time'] = datetime.utcnow().isoformat()
+                  
+                  print(f"Phase {phase['name']} completed successfully")
+                  
+              except Exception as e:
+                  print(f"Error deploying phase {phase['name']}: {str(e)}")
+                  phase_result['error'] = str(e)
+                  phase_result['end_time'] = datetime.utcnow().isoformat()
+              
+              return phase_result
+
+  # IAM Role for deployment orchestrator
+  DeploymentOrchestratorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DeploymentOrchestratorPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:*
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    'iam:PassedToService': 'cloudformation.amazonaws.com'
+
+  # Custom resource for deployment validation
+  DeploymentValidation:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt DeploymentValidatorFunction.Arn
+      DeploymentPhase: !Ref DeploymentPhase
+      Environment: !Ref Environment
+      ProjectName: !Ref ProjectName
+
+  # Lambda function for deployment validation
+  DeploymentValidatorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-deployment-validator'
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt DeploymentValidatorRole.Arn
+      Timeout: 300
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import urllib3
+          from datetime import datetime
+          
+          def lambda_handler(event, context):
+              """Validate deployment configuration"""
+              
+              print(f"Deployment validation event: {json.dumps(event)}")
+              
+              try:
+                  request_type = event['RequestType']
+                  
+                  if request_type in ['Create', 'Update']:
+                      validation_result = validate_deployment(event['ResourceProperties'])
+                      
+                      if validation_result['valid']:
+                          send_response(event, context, 'SUCCESS', validation_result)
+                      else:
+                          send_response(event, context, 'FAILED', validation_result)
+                  else:  # Delete
+                      send_response(event, context, 'SUCCESS', {'message': 'Deployment validation deleted'})
+              
+              except Exception as e:
+                  print(f"Error in deployment validation: {str(e)}")
+                  send_response(event, context, 'FAILED', {'error': str(e)})
+          
+          def validate_deployment(properties):
+              """Validate deployment configuration"""
+              
+              validation_result = {
+                  'valid': True,
+                  'checks': [],
+                  'timestamp': datetime.utcnow().isoformat()
+              }
+              
+              try:
+                  deployment_phase = properties.get('DeploymentPhase', 'full')
+                  environment = properties.get('Environment', 'dev')
+                  project_name = properties.get('ProjectName', 'cross-partition-vpn')
+                  
+                  # Validate deployment phase
+                  valid_phases = ['vpc-only', 'endpoints-only', 'vpn-only', 'lambda-only', 'monitoring-only', 'security-only', 'full']
+                  if deployment_phase not in valid_phases:
+                      validation_result['checks'].append({
+                          'check': 'deployment_phase',
+                          'status': 'FAILED',
+                          'message': f'Invalid deployment phase: {deployment_phase}'
+                      })
+                      validation_result['valid'] = False
+                  else:
+                      validation_result['checks'].append({
+                          'check': 'deployment_phase',
+                          'status': 'PASSED',
+                          'message': f'Valid deployment phase: {deployment_phase}'
+                      })
+                  
+                  # Validate environment
+                  valid_environments = ['dev', 'staging', 'prod']
+                  if environment not in valid_environments:
+                      validation_result['checks'].append({
+                          'check': 'environment',
+                          'status': 'FAILED',
+                          'message': f'Invalid environment: {environment}'
+                      })
+                      validation_result['valid'] = False
+                  else:
+                      validation_result['checks'].append({
+                          'check': 'environment',
+                          'status': 'PASSED',
+                          'message': f'Valid environment: {environment}'
+                      })
+                  
+                  # Check AWS region
+                  region = boto3.Session().region_name
+                  if region.startswith('us-gov'):
+                      validation_result['checks'].append({
+                          'check': 'aws_region',
+                          'status': 'PASSED',
+                          'message': f'Deploying in GovCloud region: {region}'
+                      })
+                  else:
+                      validation_result['checks'].append({
+                          'check': 'aws_region',
+                          'status': 'WARNING',
+                          'message': f'Deploying in Commercial region: {region}'
+                      })
+                  
+                  return validation_result
+              
+              except Exception as e:
+                  validation_result['valid'] = False
+                  validation_result['error'] = str(e)
+                  return validation_result
+          
+          def send_response(event, context, response_status, response_data):
+              """Send response to CloudFormation"""
+              
+              response_url = event['ResponseURL']
+              
+              response_body = {
+                  'Status': response_status,
+                  'Reason': f'See CloudWatch Log Stream: {context.log_stream_name}',
+                  'PhysicalResourceId': context.log_stream_name,
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': response_data
+              }
+              
+              json_response_body = json.dumps(response_body)
+              
+              headers = {
+                  'content-type': '',
+                  'content-length': str(len(json_response_body))
+              }
+              
+              try:
+                  http = urllib3.PoolManager()
+                  response = http.request('PUT', response_url, body=json_response_body, headers=headers)
+                  print(f"Status code: {response.status}")
+              except Exception as e:
+                  print(f"Error sending response: {str(e)}")
+
+  # IAM Role for deployment validator
+  DeploymentValidatorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+Outputs:
+  MasterStackId:
+    Description: 'Master stack ID'
+    Value: !Ref 'AWS::StackId'
+    Export:
+      Name: !Sub '${AWS::StackName}-MasterStackId'
+
+  DeploymentBucketName:
+    Description: 'Deployment artifacts S3 bucket name'
+    Value: !Ref DeploymentBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-DeploymentBucketName'
+
+  DeploymentOrchestratorFunctionArn:
+    Description: 'Deployment orchestrator Lambda function ARN'
+    Value: !GetAtt DeploymentOrchestratorFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-DeploymentOrchestratorFunctionArn'
+
+  VPCStackName:
+    Description: 'VPC stack name'
+    Value: !If [DeployVPC, !GetAtt VPCInfrastructure.Outputs.StackName, 'Not deployed']
+    Export:
+      Name: !Sub '${AWS::StackName}-VPCStackName'
+
+  VPCEndpointsStackName:
+    Description: 'VPC endpoints stack name'
+    Value: !If [DeployEndpoints, !GetAtt VPCEndpoints.Outputs.StackName, 'Not deployed']
+    Export:
+      Name: !Sub '${AWS::StackName}-VPCEndpointsStackName'
+
+  VPNGatewayStackName:
+    Description: 'VPN Gateway stack name'
+    Value: !If [DeployVPN, !GetAtt VPNGateway.Outputs.StackName, 'Not deployed']
+    Export:
+      Name: !Sub '${AWS::StackName}-VPNGatewayStackName'
+
+  LambdaFunctionStackName:
+    Description: 'Lambda function stack name'
+    Value: !If [DeployLambda, !GetAtt LambdaFunction.Outputs.StackName, 'Not deployed']
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaFunctionStackName'
+
+  MonitoringStackName:
+    Description: 'Monitoring stack name'
+    Value: !If [DeployMonitoring, !GetAtt MonitoringAlerting.Outputs.StackName, 'Not deployed']
+    Export:
+      Name: !Sub '${AWS::StackName}-MonitoringStackName'
+
+  SecurityStackName:
+    Description: 'Security controls stack name'
+    Value: !If [DeploySecurity, !GetAtt SecurityControls.Outputs.StackName, 'Not deployed']
+    Export:
+      Name: !Sub '${AWS::StackName}-SecurityStackName'
+
+  DeploymentPhase:
+    Description: 'Deployment phase executed'
+    Value: !Ref DeploymentPhase
+
+  Environment:
+    Description: 'Environment deployed to'
+    Value: !Ref Environment
+
+  DeploymentValidationResult:
+    Description: 'Deployment validation result'
+    Value: !GetAtt DeploymentValidation.Data
