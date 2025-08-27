@@ -53,8 +53,8 @@ Once model access is enabled, test with:
 
 # Or test directly via API Gateway
 aws apigateway test-invoke-method \
-  --rest-api-id REDACTED_ENDPOINT \
-  --resource-id ze3g42 \
+  --rest-api-id [YOUR-API-GATEWAY-ID] \
+  --resource-id [YOUR-RESOURCE-ID] \
   --http-method POST \
   --profile govcloud \
   --region us-gov-west-1 \

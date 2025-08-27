@@ -32,6 +32,9 @@ if [ -z "$API_BASE_URL" ]; then
     exit 1
 fi
 
+# Extract API Gateway ID from URL for direct API calls
+API_GATEWAY_ID=$(echo "$API_BASE_URL" | sed 's|https://||' | cut -d'.' -f1)
+
 INVOKE_ENDPOINT="${API_BASE_URL}/bedrock/invoke-model"
 
 echo ""
@@ -74,7 +77,7 @@ echo ""
 
 echo -e "${CYAN}⏳ Making cross-partition request with inference profile support...${NC}"
 CLAUDE_41_RESPONSE=$(aws apigateway test-invoke-method \
-  --rest-api-id REDACTED_ENDPOINT \
+  --rest-api-id $API_GATEWAY_ID \
   --resource-id ze3g42 \
   --http-method POST \
   --profile govcloud \

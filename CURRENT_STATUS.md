@@ -17,7 +17,7 @@
 
 **Current Config Values (from CloudFormation extraction):**
 ```bash
-API_BASE_URL="https://REDACTED_ENDPOINT.execute-api.us-gov-west-1.amazonaws.com/v1"
+API_BASE_URL="https://[YOUR-API-GATEWAY-ID].execute-api.us-gov-west-1.amazonaws.com/v1"
 AWS_REGION="us-gov-west-1"
 AWS_PROFILE="govcloud"
 STACK_NAME="cross-partition-inference-mvp"
