@@ -33,7 +33,10 @@ class TestVPNConfiguration(unittest.TestCase):
         
     def test_vpn_configuration_validation(self):
         """Test VPN configuration parameter validation"""
-        from lambda.vpn_error_handling import VPNErrorHandler, create_error_context
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'lambda'))
+        from vpn_error_handling import VPNErrorHandler, create_error_context
         
         # Test valid configuration
         config = {
@@ -59,7 +62,10 @@ class TestVPNConfiguration(unittest.TestCase):
     
     def test_error_context_creation(self):
         """Test error context creation"""
-        from lambda.vpn_error_handling import create_error_context
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'lambda'))
+        from vpn_error_handling import create_error_context
         
         context = create_error_context(
             request_id="test-123",
@@ -94,7 +100,10 @@ class TestVPCEndpointConnectivity(unittest.TestCase):
     @mock_dynamodb
     def test_vpc_endpoint_clients(self):
         """Test VPC endpoint client creation and caching"""
-        from lambda.vpc_endpoint_clients import VPCEndpointClientManager
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'lambda'))
+        from vpc_endpoint_clients import VPCEndpointClientManager
         
         # Set up mock environment
         os.environ['VPC_ENDPOINT_SECRETS'] = 'https://vpce-123.secretsmanager.us-gov-west-1.vpce.amazonaws.com'
@@ -119,7 +128,10 @@ class TestVPCEndpointConnectivity(unittest.TestCase):
     
     def test_vpc_endpoint_connectivity_test(self):
         """Test VPC endpoint connectivity testing"""
-        from lambda.vpc_endpoint_clients import VPCEndpointClientManager
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'lambda'))
+        from vpc_endpoint_clients import VPCEndpointClientManager
         
         client_manager = VPCEndpointClientManager()
         
@@ -224,7 +236,10 @@ class TestVPNTunnelFailover(unittest.TestCase):
         
     def test_tunnel_failover_logic(self):
         """Test VPN tunnel failover logic"""
-        from lambda.vpn_error_handling import VPNErrorHandler, create_error_context
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'lambda'))
+        from vpn_error_handling import VPNErrorHandler, create_error_context
         
         error_handler = VPNErrorHandler()
         context = create_error_context("test-123", "test-function")
@@ -250,7 +265,10 @@ class TestVPNTunnelFailover(unittest.TestCase):
     
     def test_circuit_breaker_functionality(self):
         """Test circuit breaker for VPC endpoints"""
-        from lambda.vpn_error_handling import CircuitBreaker
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'lambda'))
+        from vpn_error_handling import CircuitBreaker
         
         circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=60)
         
