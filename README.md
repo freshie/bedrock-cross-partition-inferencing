@@ -1,5 +1,7 @@
 # Cross-Partition AI Inference System
 
+**Version 1.0.0 - "Over the Internet" Release**
+
 A secure, production-ready solution for accessing AWS Commercial Bedrock AI models from AWS GovCloud environments via internet-based API proxy.
 
 ## 🏛️ Overview

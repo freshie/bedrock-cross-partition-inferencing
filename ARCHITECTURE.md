@@ -1,5 +1,7 @@
 # Cross-Partition AI Inference Architecture
 
+**Version 1.0.0 - "Over the Internet" Release**
+
 ## 🎯 System Overview
 
 The Cross-Partition AI Inference System enables secure access to AWS Commercial Bedrock AI models from AWS GovCloud environments through an internet-based proxy architecture. This solution addresses the challenge of accessing advanced AI models like Claude 4.1 when they're not available in GovCloud regions.
