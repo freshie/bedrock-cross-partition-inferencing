@@ -56,6 +56,29 @@ Enhanced security through encrypted tunnels between AWS partitions with private 
 
 Enterprise-grade solution with dedicated private network connections for maximum performance and security.
 
+## ⚡ **What This Version Does (v1.0.0)**
+
+### 🎯 **Current Capabilities**
+- ✅ **Cross-Partition AI Access**: GovCloud apps can use Claude 4.1, Nova Premier, Llama 4
+- ✅ **Production Ready**: Complete infrastructure with monitoring and security
+- ✅ **Internet-Based**: Uses HTTPS over public internet (encrypted and secure)
+- ✅ **Cost Effective**: ~$5-20/month for typical usage
+- ✅ **Rapid Deployment**: Deploy in 1-2 hours, not weeks
+
+### 🚀 **Supported AI Models**
+- **Claude 4.1**: Latest Anthropic model with advanced reasoning
+- **Nova Premier**: Amazon's flagship multimodal AI model  
+- **Llama 4 Scout**: Meta's latest open-source model
+- **Claude 3.5 Sonnet**: High-performance text and code generation
+- **All Commercial Bedrock Models**: 20+ models available
+
+### 🛡️ **Security & Compliance**
+- **Encrypted Transit**: HTTPS/TLS 1.2+ for all communications
+- **Secure Credentials**: AWS Secrets Manager with KMS encryption
+- **Complete Audit Trail**: Every request logged to DynamoDB
+- **IAM Authentication**: Fine-grained access control
+- **No Data Persistence**: AI requests/responses not stored
+
 ## ✨ **Features**
 
 - 🔐 **Secure**: API key authentication with AWS Secrets Manager
@@ -268,14 +291,31 @@ Thanks to all the amazing people who have contributed to this project! 🎉
 
 Want to contribute? Check out our [Contributing Guide](CONTRIBUTING.md)!
 
+## 📚 **Documentation**
+
+### **📖 Architecture & Technical Details**
+- 🏗️ [**Architecture Overview**](ARCHITECTURE.md) - Comprehensive system architecture and implementation details
+- 🔧 [**Technical Summary**](docs/TECHNICAL_SUMMARY.md) - Concise technical overview and specifications
+- 📊 [**Implementation Status**](IMPLEMENTATION_STATUS.md) - Current feature completion and roadmap
+
+### **🚀 Deployment & Setup**
+- ⚡ [**Quick Start Guide**](README.md#-quick-start) - Get running in minutes
+- 🏗️ [**Infrastructure Guide**](infrastructure/README.md) - Detailed deployment instructions
+- 🔑 [**API Key Setup**](create-comprehensive-bedrock-api-key.md) - Bedrock API key creation
+- ⚙️ [**AWS Profile Guide**](aws-profile-guide.md) - AWS CLI configuration
+
+### **🧪 Testing & Validation**
+- 🧪 [**Lambda Testing**](lambda/README.md) - Function testing and development
+- ✅ [**Test Scripts**](README.md#-usage-examples) - Comprehensive test suite
+- 🔍 [**Security Checklist**](SECURITY-CHECKLIST.md) - Security validation guide
+
 ## 🆘 **Support**
 
-- 📖 [Documentation](./docs/)
-- 🐛 [Issues](https://github.com/freshie/bedrock-cross-partition-inferencing/issues)
-- 💬 [Discussions](https://github.com/freshie/bedrock-cross-partition-inferencing/discussions)
-- 🤝 [Contributing](CONTRIBUTING.md)
-- 🛡️ [Security Policy](SECURITY.md)
-- 📋 [Code of Conduct](CODE_OF_CONDUCT.md)
+- 🐛 [**Issues**](https://github.com/freshie/bedrock-cross-partition-inferencing/issues) - Bug reports and feature requests
+- 💬 [**Discussions**](https://github.com/freshie/bedrock-cross-partition-inferencing/discussions) - Community Q&A
+- 🤝 [**Contributing**](CONTRIBUTING.md) - How to contribute to the project
+- 🛡️ [**Security Policy**](SECURITY.md) - Security vulnerability reporting
+- 📋 [**Code of Conduct**](CODE_OF_CONDUCT.md) - Community guidelines
 
 ---
 
