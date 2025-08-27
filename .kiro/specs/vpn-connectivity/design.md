@@ -83,6 +83,7 @@ The VPN-based solution creates secure, encrypted tunnels between AWS partitions 
   - `VPC_ENDPOINT_SECRETS`: Secrets Manager VPC endpoint URL
   - `VPC_ENDPOINT_DYNAMODB`: DynamoDB VPC endpoint URL
   - `COMMERCIAL_BEDROCK_ENDPOINT`: Private IP for cross-partition access
+- **Configuration Management**: Uses local config extraction similar to internet solution
 
 #### 4. VPC Endpoints (GovCloud)
 - **Secrets Manager**: com.amazonaws.vpce.us-gov-west-1.secretsmanager
@@ -147,6 +148,38 @@ class VPNConfiguration:
     tunnel_2_psk: str
     bgp_asn_govcloud: int = 65000
     bgp_asn_commercial: int = 65001
+```
+
+### API Configuration Model
+```python
+@dataclass
+class APIConfiguration:
+    api_gateway_url: str
+    bedrock_invoke_endpoint: str
+    bedrock_models_endpoint: str
+    routing_method: str = "vpn"
+    
+    @classmethod
+    def from_config_extraction(cls, stack_name: str):
+        """Extract API endpoints from CloudFormation stack outputs"""
+        cf_client = boto3.client('cloudformation')
+        
+        try:
+            response = cf_client.describe_stacks(StackName=stack_name)
+            outputs = response['Stacks'][0]['Outputs']
+            
+            config = {}
+            for output in outputs:
+                if output['OutputKey'] == 'ApiGatewayUrl':
+                    config['api_gateway_url'] = output['OutputValue']
+                elif output['OutputKey'] == 'BedrockInvokeEndpoint':
+                    config['bedrock_invoke_endpoint'] = output['OutputValue']
+                elif output['OutputKey'] == 'BedrockModelsEndpoint':
+                    config['bedrock_models_endpoint'] = output['OutputValue']
+            
+            return cls(**config)
+        except Exception as e:
+            raise ConfigurationError(f"Failed to extract API configuration: {e}")
 ```
 
 ### VPC Endpoint Configuration Model
@@ -229,6 +262,23 @@ def handle_routing_failure(destination_cidr):
         raise VPNGatewayError(f"VPN Gateway status: {vpn_status}")
 ```
 
+#### 4. Bedrock API Key Authentication
+```python
+def handle_bedrock_auth_failure():
+    # Retrieve API key from Secrets Manager via VPC endpoint
+    try:
+        secrets_client = boto3.client('secretsmanager', 
+                                    endpoint_url=VPC_ENDPOINT_SECRETS)
+        secret = secrets_client.get_secret_value(
+            SecretId='cross-partition-commercial-creds'
+        )
+        credentials = json.loads(secret['SecretString'])
+        return credentials['bedrock_api_key']
+    except Exception as e:
+        logger.error(f"Failed to retrieve Bedrock API key: {e}")
+        raise BedrockAuthError("Unable to authenticate with Bedrock service")
+```
+
 ## Testing Strategy
 
 ### Unit Testing
@@ -263,20 +313,73 @@ def test_vpc_endpoint_connectivity():
 
 ### Integration Testing
 
-#### End-to-End VPN Flow Test
+#### Configuration Extraction and API Testing
 ```python
-def test_cross_partition_vpn_flow():
-    # Test complete flow through VPN tunnel
+def test_vpn_config_extraction():
+    # Test same config extraction pattern as internet solution
+    config_script = "./scripts/get-vpn-config.sh"
+    result = subprocess.run([config_script], capture_output=True, text=True)
+    
+    assert result.returncode == 0
+    assert "VPN_API_BASE_URL=" in result.stdout
+    assert "VPN_BEDROCK_INVOKE_URL=" in result.stdout
+    
+    # Verify config.sh file is created with VPN endpoints
+    with open("config.sh", "r") as f:
+        config_content = f.read()
+        assert "VPN_API_BASE_URL" in config_content
+        assert "execute-api" in config_content  # API Gateway URL format
+
+def test_cross_partition_vpn_flow_with_local_config():
+    # Load configuration same way as internet solution
+    import os
+    api_base_url = os.environ.get('VPN_API_BASE_URL')
+    
+    # Test models not available in GovCloud
+    test_models = [
+        "anthropic.claude-opus-4-1-20250805-v1:0",  # Claude 4.1
+        "amazon.nova-premier-v1:0",                  # Nova Premier
+        "meta.llama3-2-90b-instruct-v1:0",          # Llama 3.2 90B
+        "anthropic.claude-3-5-sonnet-20241022-v2:0" # Claude 3.5 Sonnet v2
+    ]
+    
+    for model_id in test_models:
+        response = requests.post(f"{api_base_url}/bedrock/invoke-model",
+            headers={"Content-Type": "application/json"},
+            json={
+                "modelId": model_id,
+                "body": {"messages": [{"role": "user", "content": "Hello from GovCloud via VPN!"}]}
+            }
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "routing_method" in data["metadata"]
+        assert data["metadata"]["routing_method"] == "vpn"
+        assert len(data["body"]["content"]) > 0
+        
+        # Verify we're actually using Commercial partition models
+        assert "govcloud" not in data["metadata"]["source_region"]
+```
+
+#### Bedrock API Key Authentication Test
+```python
+def test_bedrock_api_key_authentication():
+    # Test that VPN solution uses same API key as internet solution
     request = {
-        "modelId": "anthropic.claude-3-sonnet-20240229-v1:0",
-        "body": {"messages": [{"role": "user", "content": "Hello"}]}
+        "modelId": "anthropic.claude-opus-4-1-20250805-v1:0",
+        "body": {"messages": [{"role": "user", "content": "Test authentication"}]}
     }
     
+    # Should successfully authenticate using API key from Secrets Manager
     response = invoke_cross_partition_bedrock(request)
     
     assert response["statusCode"] == 200
-    assert "routing_method" in response["metadata"]
-    assert response["metadata"]["routing_method"] == "vpn"
+    assert "authentication_method" in response["metadata"]
+    assert response["metadata"]["authentication_method"] == "bedrock_api_key"
+    
+    # Verify API key was retrieved via VPC endpoint
+    assert response["metadata"]["secrets_access_method"] == "vpc_endpoint"
 ```
 
 #### VPN Failover Testing
@@ -562,6 +665,215 @@ NETWORK_DASHBOARD_WIDGETS = [
 ]
 ```
 
+## Local Configuration Management
+
+### Configuration File Structure
+
+#### VPN Configuration Template
+```bash
+# config-vpn.sh - Generated automatically by deployment
+export DEPLOYMENT_MODE="vpn"
+export API_BASE_URL="https://your-api-id.execute-api.us-gov-west-1.amazonaws.com/v1"
+export ROUTING_METHOD="vpn"
+export VPN_TUNNEL_STATUS_ENDPOINT="https://your-api-id.execute-api.us-gov-west-1.amazonaws.com/v1/vpn/status"
+
+# VPN-specific endpoints
+export GOVCLOUD_VPC_ID="vpc-12345678"
+export COMMERCIAL_VPC_ID="vpc-87654321"
+export VPN_GATEWAY_GOVCLOUD="vgw-abc123"
+export VPN_GATEWAY_COMMERCIAL="vgw-def456"
+
+# Tunnel information
+export TUNNEL_1_IP="203.0.113.1"
+export TUNNEL_2_IP="203.0.113.2"
+export TUNNEL_1_STATUS="UP"
+export TUNNEL_2_STATUS="UP"
+
+# Performance metrics endpoints
+export METRICS_ENDPOINT="https://your-api-id.execute-api.us-gov-west-1.amazonaws.com/v1/metrics"
+export HEALTH_CHECK_ENDPOINT="https://your-api-id.execute-api.us-gov-west-1.amazonaws.com/v1/health"
+```
+
+#### Configuration Update Script
+```python
+# scripts/update-vpn-config.py
+import boto3
+import json
+import os
+from typing import Dict, Any
+
+class VPNConfigManager:
+    def __init__(self, govcloud_profile: str, commercial_profile: str):
+        self.govcloud_session = boto3.Session(profile_name=govcloud_profile)
+        self.commercial_session = boto3.Session(profile_name=commercial_profile)
+    
+    def extract_vpn_config(self) -> Dict[str, Any]:
+        """Extract VPN configuration from CloudFormation stacks"""
+        govcloud_cf = self.govcloud_session.client('cloudformation')
+        commercial_cf = self.commercial_session.client('cloudformation')
+        
+        # Get GovCloud stack outputs
+        govcloud_stack = govcloud_cf.describe_stacks(
+            StackName='cross-partition-vpn-govcloud'
+        )['Stacks'][0]
+        
+        # Get Commercial stack outputs
+        commercial_stack = commercial_cf.describe_stacks(
+            StackName='cross-partition-vpn-commercial'
+        )['Stacks'][0]
+        
+        config = {}
+        
+        # Extract outputs from both stacks
+        for output in govcloud_stack['Outputs']:
+            config[f"GOVCLOUD_{output['OutputKey']}"] = output['OutputValue']
+            
+        for output in commercial_stack['Outputs']:
+            config[f"COMMERCIAL_{output['OutputKey']}"] = output['OutputValue']
+        
+        return config
+    
+    def get_vpn_tunnel_status(self) -> Dict[str, str]:
+        """Get current VPN tunnel status"""
+        ec2 = self.govcloud_session.client('ec2')
+        
+        vpn_connections = ec2.describe_vpn_connections()
+        tunnel_status = {}
+        
+        for vpn in vpn_connections['VpnConnections']:
+            for i, tunnel in enumerate(vpn['VgwTelemetry'], 1):
+                tunnel_status[f"TUNNEL_{i}_STATUS"] = tunnel['Status']
+                tunnel_status[f"TUNNEL_{i}_IP"] = tunnel['OutsideIpAddress']
+        
+        return tunnel_status
+    
+    def generate_config_file(self, output_path: str = "config-vpn.sh"):
+        """Generate complete VPN configuration file"""
+        config = self.extract_vpn_config()
+        tunnel_status = self.get_vpn_tunnel_status()
+        
+        config_content = [
+            "#!/bin/bash",
+            "# VPN Configuration - Auto-generated",
+            f"# Generated: {datetime.now().isoformat()}",
+            "",
+            "export DEPLOYMENT_MODE=\"vpn\"",
+            "export ROUTING_METHOD=\"vpn\"",
+            ""
+        ]
+        
+        # Add extracted configuration
+        for key, value in config.items():
+            config_content.append(f"export {key}=\"{value}\"")
+        
+        config_content.append("")
+        
+        # Add tunnel status
+        for key, value in tunnel_status.items():
+            config_content.append(f"export {key}=\"{value}\"")
+        
+        # Write to file
+        with open(output_path, 'w') as f:
+            f.write('\n'.join(config_content))
+        
+        os.chmod(output_path, 0o755)
+        print(f"VPN configuration written to {output_path}")
+
+# Usage
+if __name__ == "__main__":
+    manager = VPNConfigManager("govcloud", "commercial")
+    manager.generate_config_file()
+```
+
+#### Automatic Config Update Integration
+```bash
+# scripts/deploy-vpn-with-config.sh
+#!/bin/bash
+
+echo "🚀 Deploying VPN infrastructure..."
+
+# Deploy CloudFormation stacks
+./deploy-vpn-infrastructure.sh
+
+if [ $? -eq 0 ]; then
+    echo "✅ VPN infrastructure deployed successfully"
+    
+    echo "📝 Updating local configuration..."
+    python3 scripts/update-vpn-config.py
+    
+    echo "🧪 Testing VPN connectivity..."
+    source config-vpn.sh
+    ./test-vpn-connectivity.sh
+    
+    echo "✅ VPN deployment and configuration complete!"
+    echo "📋 Configuration saved to: config-vpn.sh"
+    echo "🔗 API Base URL: $API_BASE_URL"
+    echo "🌐 Routing Method: $ROUTING_METHOD"
+else
+    echo "❌ VPN deployment failed"
+    exit 1
+fi
+```
+
+### Configuration Validation
+
+#### Config Validation Script
+```python
+# scripts/validate-vpn-config.py
+import os
+import requests
+import boto3
+from typing import Dict, List
+
+def validate_vpn_config() -> List[str]:
+    """Validate VPN configuration and connectivity"""
+    errors = []
+    
+    # Check required environment variables
+    required_vars = [
+        'API_BASE_URL', 'GOVCLOUD_VPC_ID', 'COMMERCIAL_VPC_ID',
+        'VPN_GATEWAY_GOVCLOUD', 'VPN_GATEWAY_COMMERCIAL',
+        'TUNNEL_1_IP', 'TUNNEL_2_IP'
+    ]
+    
+    for var in required_vars:
+        if not os.getenv(var):
+            errors.append(f"Missing required environment variable: {var}")
+    
+    # Test API connectivity
+    try:
+        api_url = os.getenv('API_BASE_URL')
+        response = requests.get(f"{api_url}/health", timeout=10)
+        if response.status_code != 200:
+            errors.append(f"API health check failed: {response.status_code}")
+    except Exception as e:
+        errors.append(f"API connectivity test failed: {e}")
+    
+    # Test VPN tunnel status
+    try:
+        tunnel_1_status = os.getenv('TUNNEL_1_STATUS')
+        tunnel_2_status = os.getenv('TUNNEL_2_STATUS')
+        
+        if tunnel_1_status != 'UP' and tunnel_2_status != 'UP':
+            errors.append("Both VPN tunnels are down")
+        elif tunnel_1_status != 'UP' or tunnel_2_status != 'UP':
+            errors.append("One VPN tunnel is down (degraded performance)")
+    except Exception as e:
+        errors.append(f"VPN tunnel status check failed: {e}")
+    
+    return errors
+
+if __name__ == "__main__":
+    errors = validate_vpn_config()
+    if errors:
+        print("❌ Configuration validation failed:")
+        for error in errors:
+            print(f"  - {error}")
+        exit(1)
+    else:
+        print("✅ VPN configuration validation passed")
+```
+
 ## Deployment Strategy
 
 ### Infrastructure as Code
@@ -608,6 +920,54 @@ Resources:
 4. **Phase 4**: Deploy Lambda functions with VPC configuration
 5. **Phase 5**: Configure routing and test connectivity
 6. **Phase 6**: Deploy monitoring and alerting
+7. **Phase 7**: Extract API configuration and create local config files
+
+### Configuration Management
+
+#### API Endpoint Extraction Script
+```bash
+#!/bin/bash
+# scripts/get-vpn-config.sh - Extract VPN API endpoints
+# Similar to existing get-config.sh but for VPN infrastructure
+
+STACK_NAME="cross-partition-vpn-infrastructure"
+
+echo "Extracting VPN API configuration from CloudFormation..."
+
+# Get API Gateway URL for VPN solution
+VPN_API_URL=$(aws cloudformation describe-stacks \
+  --stack-name $STACK_NAME \
+  --query 'Stacks[0].Outputs[?OutputKey==`VPNApiGatewayUrl`].OutputValue' \
+  --output text)
+
+# Get Bedrock invoke endpoint
+VPN_BEDROCK_INVOKE_URL="${VPN_API_URL}/bedrock/invoke-model"
+
+# Get Bedrock models endpoint  
+VPN_BEDROCK_MODELS_URL="${VPN_API_URL}/bedrock/models"
+
+# Create config.sh file (same pattern as internet solution)
+cat > config.sh << EOF
+#!/bin/bash
+# VPN-based Cross-Partition API Configuration
+# Auto-generated from CloudFormation stack: $STACK_NAME
+
+export VPN_API_BASE_URL="$VPN_API_URL"
+export VPN_BEDROCK_INVOKE_URL="$VPN_BEDROCK_INVOKE_URL"
+export VPN_BEDROCK_MODELS_URL="$VPN_BEDROCK_MODELS_URL"
+export ROUTING_METHOD="vpn"
+
+echo "VPN API Configuration loaded:"
+echo "  Base URL: \$VPN_API_BASE_URL"
+echo "  Bedrock Invoke: \$VPN_BEDROCK_INVOKE_URL"
+echo "  Bedrock Models: \$VPN_BEDROCK_MODELS_URL"
+EOF
+
+chmod +x config.sh
+
+echo "✅ VPN configuration extracted to config.sh"
+echo "Run 'source config.sh' to load environment variables"
+```
 
 ### Rollback Strategy
 

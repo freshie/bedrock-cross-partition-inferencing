@@ -74,7 +74,19 @@ This document outlines the requirements for implementing Site-to-Site VPN connec
 7. WHEN validating connectivity THEN the system SHALL confirm all services accessible via private IPs in both partitions
 8. IF new AWS services are added THEN the system SHALL automatically provision required VPC endpoints in the appropriate partition
 
-### Requirement 6: Backward Compatibility
+### Requirement 6: Local Configuration Management
+
+**User Story:** As a developer, I want automatic local configuration updates when VPN infrastructure is deployed, so that I can immediately test and use the new endpoints without manual configuration steps.
+
+#### Acceptance Criteria
+
+1. WHEN VPN infrastructure is deployed THEN the system SHALL automatically generate local configuration files
+2. WHEN configuration changes THEN the system SHALL update local config files with new VPN endpoint URLs
+3. WHEN running test scripts THEN the system SHALL automatically use VPN-specific endpoints
+4. WHEN switching between internet and VPN modes THEN the system SHALL update configuration seamlessly
+5. WHEN validating deployment THEN the system SHALL provide example configuration showing VPN routing
+
+### Requirement 7: Backward Compatibility
 
 **User Story:** As an existing user, I want the VPN solution to work with existing API interfaces, so that I don't need to change my application code.
 
