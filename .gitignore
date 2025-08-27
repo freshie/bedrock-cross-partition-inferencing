@@ -56,3 +56,14 @@ logs/
 tmp/
 temp/
 *.tmp
+
+# Archive Files
+*.zip
+*.tar.gz
+*.tar
+gh.tar.gz
+lambda-deployment.zip
+
+# Draft and Working Files
+docs/drafts/*.docx
+*.docx

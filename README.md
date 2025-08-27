@@ -301,13 +301,13 @@ Want to contribute? Check out our [Contributing Guide](CONTRIBUTING.md)!
 ### **🚀 Deployment & Setup**
 - ⚡ [**Quick Start Guide**](README.md#-quick-start) - Get running in minutes
 - 🏗️ [**Infrastructure Guide**](infrastructure/README.md) - Detailed deployment instructions
-- 🔑 [**API Key Setup**](create-comprehensive-bedrock-api-key.md) - Bedrock API key creation
-- ⚙️ [**AWS Profile Guide**](aws-profile-guide.md) - AWS CLI configuration
+- 🔑 [**API Key Setup**](docs/create-comprehensive-bedrock-api-key.md) - Bedrock API key creation
+- ⚙️ [**AWS Profile Guide**](docs/aws-profile-guide.md) - AWS CLI configuration
 
 ### **🧪 Testing & Validation**
 - 🧪 [**Lambda Testing**](lambda/README.md) - Function testing and development
 - ✅ [**Test Scripts**](README.md#-usage-examples) - Comprehensive test suite
-- 🔍 [**Security Checklist**](SECURITY-CHECKLIST.md) - Security validation guide
+- 🔍 [**Security Checklist**](docs/SECURITY-CHECKLIST.md) - Security validation guide
 
 ## 🆘 **Support**
 
