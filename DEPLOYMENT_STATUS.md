@@ -69,7 +69,7 @@ aws apigateway test-invoke-method \
 
 ## 🔗 Key Resources
 
-- **API Gateway Base URL**: `https://REDACTED_ENDPOINT.execute-api.us-gov-west-1.amazonaws.com/v1`
+- **API Gateway Base URL**: Extract from CloudFormation using `./scripts/get-config.sh`
 - **Models Endpoint**: `GET /bedrock/models`
 - **Invoke Endpoint**: `POST /bedrock/invoke-model`
 - **Commercial Account**: YOUR-COMMERCIAL-ACCOUNT-ID

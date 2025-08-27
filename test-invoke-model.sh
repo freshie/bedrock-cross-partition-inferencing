@@ -14,8 +14,24 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# API Configuration
-API_BASE_URL="https://REDACTED_ENDPOINT.execute-api.us-gov-west-1.amazonaws.com/v1"
+# Load configuration
+if [ -f "config.sh" ]; then
+    source config.sh
+    echo -e "${GREEN}✅ Loaded configuration from config.sh${NC}"
+else
+    echo -e "${RED}❌ Configuration file not found!${NC}"
+    echo -e "${YELLOW}📋 Please copy config.example.sh to config.sh and update with your values:${NC}"
+    echo -e "   ${CYAN}cp config.example.sh config.sh${NC}"
+    echo -e "   ${CYAN}# Edit config.sh with your API Gateway URL${NC}"
+    exit 1
+fi
+
+# Validate required configuration
+if [ -z "$API_BASE_URL" ]; then
+    echo -e "${RED}❌ API_BASE_URL not set in config.sh${NC}"
+    exit 1
+fi
+
 INVOKE_ENDPOINT="${API_BASE_URL}/bedrock/invoke-model"
 
 echo ""

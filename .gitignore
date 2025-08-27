@@ -18,6 +18,7 @@ aws-config*
 .env
 .env.*
 *.env
+config.sh
 
 # AWS Account Information
 account-info*

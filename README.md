@@ -102,30 +102,43 @@ Enterprise-grade solution with dedicated private network connections for maximum
 git clone https://github.com/freshie/bedrock-cross-partition-inferencing.git
 cd bedrock-cross-partition-inferencing
 
-# Deploy to Commercial AWS (us-east-1)
-./infrastructure/deploy.sh
-
-# Note the API Gateway URL from the output
+# Deploy the complete system
+./deploy-mvp.sh
 ```
 
-### 2. Configure Credentials
+### 2. Extract Configuration
 
 ```bash
-# Create Bedrock API key in Commercial AWS
-aws iam create-service-specific-credential \
-  --user-name bedrock-api-user \
-  --service-name bedrock.amazonaws.com \
-  --credential-age-days 365
+# Auto-extract API endpoints from your deployment
+./scripts/get-config.sh
 
-# Store in Secrets Manager (done automatically by deployment)
+# This creates config.sh with your actual API Gateway URLs
 ```
 
-### 3. Test the Proxy
+### 3. Configure Bedrock Credentials
 
 ```bash
-# Test from GovCloud
+# Create Bedrock API key in Commercial AWS (see docs/create-comprehensive-bedrock-api-key.md)
+# Then update Secrets Manager with your key:
+aws secretsmanager update-secret \
+  --secret-id cross-partition-commercial-creds \
+  --secret-string '{"bedrock_api_key":"YOUR_BASE64_KEY","region":"us-east-1"}'
+```
+
+### 4. Test the System
+
+```bash
+# Test basic functionality
 ./test-invoke-model.sh
+
+# Test Claude 4.1 specifically  
+./test-claude-4-1.sh
+
+# Run comprehensive validation
+./test-cross-partition.sh
 ```
+
+📖 **For detailed setup instructions, see [Setup Guide](docs/SETUP_GUIDE.md)**
 
 ## 📖 **Usage Examples**
 
@@ -134,8 +147,11 @@ aws iam create-service-specific-credential \
 import requests
 import json
 
-# Your API Gateway endpoint
-endpoint = "https://your-api-id.execute-api.us-east-1.amazonaws.com/v1"
+# Load your API Gateway endpoint from config
+# First run: ./scripts/get-config.sh to extract from CloudFormation
+# Or copy config.example.sh to config.sh and update manually
+import os
+endpoint = os.environ.get('API_BASE_URL', 'https://your-api-id.execute-api.us-east-1.amazonaws.com/v1')
 
 # Invoke Claude 4.1
 response = requests.post(f"{endpoint}/bedrock/invoke-model", 
@@ -153,7 +169,9 @@ response = requests.post(f"{endpoint}/bedrock/invoke-model",
 
 ### cURL
 ```bash
-curl -X POST "https://your-api-id.execute-api.us-east-1.amazonaws.com/v1/bedrock/invoke-model" \
+# First extract your endpoint: ./scripts/get-config.sh
+# Then use the endpoint from config.sh
+curl -X POST "$API_BASE_URL/bedrock/invoke-model" \
   -H "Content-Type: application/json" \
   -d '{
     "modelId": "amazon.nova-premier-v1:0",
@@ -299,7 +317,7 @@ Want to contribute? Check out our [Contributing Guide](CONTRIBUTING.md)!
 - 📊 [**Implementation Status**](IMPLEMENTATION_STATUS.md) - Current feature completion and roadmap
 
 ### **🚀 Deployment & Setup**
-- ⚡ [**Quick Start Guide**](README.md#-quick-start) - Get running in minutes
+- ⚡ [**Setup Guide**](docs/SETUP_GUIDE.md) - Complete setup walkthrough
 - 🏗️ [**Infrastructure Guide**](infrastructure/README.md) - Detailed deployment instructions
 - 🔑 [**API Key Setup**](docs/create-comprehensive-bedrock-api-key.md) - Bedrock API key creation
 - ⚙️ [**AWS Profile Guide**](docs/aws-profile-guide.md) - AWS CLI configuration

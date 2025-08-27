@@ -81,7 +81,10 @@ This will:
 
 Test the dashboard API:
 ```bash
-curl -X GET "https://YOUR_API_ID.execute-api.us-gov-west-1.amazonaws.com/v1/dashboard/requests"
+# Extract your API endpoint first
+./scripts/get-config.sh
+source config.sh
+curl -X GET "$API_BASE_URL/dashboard/requests"
 ```
 
 Test the Bedrock proxy (requires IAM authentication):
