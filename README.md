@@ -1,59 +1,120 @@
-# Cross-Partition Inference MVP
+# Cross-Partition AI Inference System
 
-A secure, internet-based solution for accessing AWS Commercial Bedrock models from AWS GovCloud via API endpoints.
+A secure, production-ready solution for accessing AWS Commercial Bedrock AI models from AWS GovCloud environments via internet-based API proxy.
 
 ## 🏛️ Overview
 
-This MVP enables AWS GovCloud users to access Commercial partition Bedrock AI models when local resources are constrained or unavailable. The solution provides:
+This system enables AWS GovCloud users to seamlessly access Commercial partition Bedrock AI models including **Claude 4.1**, **Claude 3.5 Sonnet**, and other advanced AI models when local GovCloud resources are constrained or unavailable. 
 
-- **Secure cross-partition proxy** for Bedrock API calls
-- **Model discovery API** to list available Commercial Bedrock models
-- **Complete audit trail** with request logging
-- **Simple deployment** with automated scripts
+### Key Capabilities
+
+- **🤖 Advanced AI Models**: Access to Claude 4.1, Claude 3.5 Sonnet, Nova, Llama, and other cutting-edge models
+- **🔒 Secure Cross-Partition Proxy**: Encrypted HTTPS communication with full audit trails
+- **🎯 Automatic Inference Profiles**: Seamless handling of models requiring inference profiles
+- **📊 Model Discovery API**: Real-time listing of available Commercial Bedrock models
+- **🔑 Flexible Authentication**: Support for both Bedrock API keys and AWS credentials
+- **📈 Complete Observability**: Request logging, performance metrics, and monitoring
+- **🚀 Simple Deployment**: Automated infrastructure deployment and testing
 
 ## 🏗️ Architecture
 
 ```
-GovCloud                           Commercial
-┌─────────────────────────┐       ┌──────────────────┐
-│                         │       │                  │
-│  API Gateway            │       │   Amazon         │
-│  ┌─────────────────┐    │  HTTPS│   Bedrock        │
-│  │ /bedrock/       │    │   ──► │                  │
-│  │ invoke-model    │    │       │   AI Models      │
-│  │                 │    │       │   (Claude, etc.) │
-│  │ /bedrock/models │    │       │                  │
-│  └─────────────────┘    │       └──────────────────┘
-│           │             │
-│  ┌─────────────────┐    │
-│  │ Lambda Proxy    │    │
-│  │ Function        │    │
-│  └─────────────────┘    │
-│                         │
-│  DynamoDB (Logs)        │
-│  Secrets Manager        │
-└─────────────────────────┘
+AWS GovCloud (us-gov-west-1)                    AWS Commercial (us-east-1)
+┌─────────────────────────────────┐             ┌──────────────────────────┐
+│                                 │             │                          │
+│  🌐 API Gateway                 │             │  🤖 Amazon Bedrock       │
+│  ┌─────────────────────────┐    │   HTTPS     │  ┌─────────────────────┐ │
+│  │ /v1/bedrock/invoke-model│────┼─────────────┼─►│ Claude 4.1          │ │
+│  │ /v1/bedrock/models      │    │   Internet  │  │ Claude 3.5 Sonnet   │ │
+│  │ /v1/dashboard/requests  │    │             │  │ Nova Premier/Pro    │ │
+│  └─────────────────────────┘    │             │  │ Llama 4 Scout       │ │
+│             │                   │             │  │ + Inference Profiles│ │
+│  ⚡ Lambda Proxy Function       │             │  └─────────────────────┘ │
+│  ┌─────────────────────────┐    │             │                          │
+│  │ • API Key Authentication│    │             │  🔑 Bedrock API Keys     │
+│  │ • Inference Profile Mgmt│    │             │  ┌─────────────────────┐ │
+│  │ • Request Routing       │    │             │  │ Long-term API Keys  │ │
+│  │ • Error Handling        │    │             │  │ Auto-expiration     │ │
+│  │ • Audit Logging         │    │             │  │ Enhanced Permissions│ │
+│  └─────────────────────────┘    │             │  └─────────────────────┘ │
+│                                 │             └──────────────────────────┘
+│  🗄️ Storage & Security          │
+│  ┌─────────────────────────┐    │
+│  │ Secrets Manager         │    │
+│  │ • Commercial API Keys   │    │
+│  │ • Encrypted Storage     │    │
+│  └─────────────────────────┘    │
+│                                 │
+│  ┌─────────────────────────┐    │
+│  │ DynamoDB Logs           │    │
+│  │ • Request Audit Trail   │    │
+│  │ • Performance Metrics   │    │
+│  │ • 30-day TTL            │    │
+│  └─────────────────────────┘    │
+└─────────────────────────────────┘
+
+📊 **Detailed Architecture**: See [ARCHITECTURE.md](ARCHITECTURE.md)  
+🎨 **Visual Diagram**: [Cross-Partition Inference Flow](https://app.diagrams.net/) *(Draw.io link to be added)*
+
+> **Note**: The Draw.io diagram provides a comprehensive visual representation including:
+> - Complete request/response flows
+> - Security boundaries and encryption points  
+> - Error handling and retry mechanisms
+> - Inference profile creation logic
+> - Monitoring and audit touchpoints
 ```
+
+## 🔑 Key Requirements
+
+### Commercial AWS Account Requirements
+- **Bedrock Model Access**: Enable Claude 4.1, Claude 3.5 Sonnet, Nova, Llama models
+- **Enhanced IAM Policy**: Inference profile creation and management permissions
+- **API Key Generation**: Long-term Bedrock API key with enhanced permissions
+- **Region**: Models must be available in `us-east-1`
+
+### GovCloud Account Requirements  
+- **API Gateway**: REST API with Lambda integration
+- **Lambda Function**: Python 3.9+ runtime with enhanced permissions
+- **Secrets Manager**: Secure storage for Commercial credentials
+- **DynamoDB**: Request logging and audit trail storage
+- **IAM Roles**: Proper permissions for cross-service access
+
+### Network Requirements
+- **Internet Connectivity**: HTTPS access from GovCloud to Commercial AWS
+- **DNS Resolution**: Ability to resolve `bedrock-runtime.us-east-1.amazonaws.com`
+- **Firewall Rules**: Outbound HTTPS (port 443) from Lambda to internet
 
 ## 📁 Project Structure
 
 ```
-├── deploy-mvp.sh              # Complete deployment script
-├── test-cross-partition.sh    # End-to-end testing script
-├── aws-profile-guide.md       # AWS profile usage guide
-├── infrastructure/            # CloudFormation templates
-│   ├── cross-partition-infrastructure.yaml
-│   ├── deploy.sh
-│   ├── deploy-lambda.sh
-│   └── README.md
-├── lambda/                    # Lambda function code
-│   ├── lambda_function.py
-│   ├── requirements.txt
-│   ├── test_lambda.py
-│   └── README.md
-└── test-models-endpoint.sh    # Test script for models API
-└── .kiro/specs/              # Feature specifications
+├── 📋 ARCHITECTURE.md                          # Detailed architecture documentation
+├── 🚀 deploy-mvp.sh                           # Complete deployment automation
+├── 🧪 Test Scripts
+│   ├── test-cross-partition.sh                # End-to-end system testing
+│   ├── test-claude.sh                         # Claude 3.5 Sonnet testing
+│   ├── test-claude-4-1.sh                     # Claude 4.1 inference profile testing
+│   └── test-models-endpoint.sh                # Model discovery API testing
+├── 📚 Documentation & Guides
+│   ├── aws-profile-guide.md                   # AWS CLI profile configuration
+│   ├── create-comprehensive-bedrock-api-key.md # API key creation guide
+│   ├── create-real-bedrock-api-key.md         # Alternative API key guide
+│   └── bedrock-enhanced-policy.json           # Enhanced IAM policy template
+├── 🏗️ infrastructure/                         # CloudFormation & deployment
+│   ├── cross-partition-infrastructure.yaml    # Main infrastructure template
+│   ├── deploy.sh                              # Infrastructure deployment
+│   ├── deploy-lambda.sh                       # Lambda function deployment
+│   └── README.md                              # Infrastructure documentation
+├── ⚡ lambda/                                 # Lambda function implementation
+│   ├── lambda_function.py                     # Main proxy function
+│   ├── requirements.txt                       # Python dependencies
+│   ├── test_lambda.py                         # Unit tests
+│   └── README.md                              # Function documentation
+└── 📋 .kiro/specs/                           # Feature specifications & roadmap
     └── cross-partition-inference/
+        ├── requirements.md                    # System requirements
+        ├── design.md                          # Technical design
+        ├── tasks.md                           # Implementation tasks
+        └── roadmap.md                         # Future enhancements
 ```
 
 ## 🚀 Quick Start
@@ -65,15 +126,35 @@ GovCloud                           Commercial
 3. **Commercial AWS account** with Bedrock access
 4. **Required permissions** in GovCloud account
 
-### Step 1: Generate Bedrock API Key
+### Step 1: Setup Commercial AWS Account
 
-Generate a Bedrock API key in your **Commercial AWS account**:
+#### Generate Enhanced Bedrock API Key
 
-1. Sign in to **Commercial AWS Console** (not GovCloud)
-2. Navigate to **Amazon Bedrock** → **API Keys**
-3. Choose **Generate long-term API key**
-4. Set expiration (recommend 90 days for testing)
-5. **Copy the API key** - you'll need it after deployment
+Create a Bedrock API key with inference profile permissions in your **Commercial AWS account**:
+
+1. **Create Enhanced IAM Policy** (see `bedrock-enhanced-policy.json`):
+   ```bash
+   aws iam create-policy \
+     --policy-name BedrockEnhancedAccess \
+     --policy-document file://bedrock-enhanced-policy.json
+   ```
+
+2. **Generate API Key with Enhanced Permissions**:
+   ```bash
+   # Follow the comprehensive guide
+   ./create-comprehensive-bedrock-api-key.md
+   ```
+
+3. **Enable Required Models**:
+   - Navigate to **Amazon Bedrock Console** → **Model Access**
+   - Enable: Claude 4.1, Claude 3.5 Sonnet, Nova Premier, Llama models
+   - Verify inference profiles are available
+
+#### What You'll Get
+- **API Key Format**: `bedrock-api-user+1-at-ACCOUNT:BASE64_SECRET`
+- **Enhanced Permissions**: Inference profile creation and management
+- **Model Access**: Claude 4.1, Nova, and all advanced models
+- **Automatic Expiration**: Configurable (90 days recommended for testing)
 
 ### Step 2: Deploy the Solution
 
@@ -95,8 +176,16 @@ This script will:
    ./deploy.sh
    ```
 
-2. **Update Commercial Credentials**:
+2. **Store Commercial Bedrock API Key**:
    ```bash
+   # Store the Bedrock API key (preferred method)
+   aws secretsmanager update-secret \
+       --secret-id cross-partition-commercial-creds \
+       --secret-string '{"bedrock_api_key":"YOUR_BASE64_API_KEY","region":"us-east-1"}' \
+       --profile govcloud \
+       --region us-gov-west-1
+   
+   # Alternative: AWS credentials (if API key not available)
    aws secretsmanager update-secret \
        --secret-id cross-partition-commercial-creds \
        --secret-string '{"aws_access_key_id":"YOUR_KEY","aws_secret_access_key":"YOUR_SECRET","region":"us-east-1"}' \
@@ -166,15 +255,27 @@ See `aws-profile-guide.md` for detailed profile usage.
 
 ### Automated Testing
 ```bash
+# Test basic cross-partition functionality
 ./test-cross-partition.sh
+
+# Test Claude 3.5 Sonnet
+./test-claude.sh
+
+# Test Claude 4.1 (requires inference profile)
+./test-claude-4-1.sh
+
+# Test model discovery API
+./test-models-endpoint.sh
 ```
 
-Tests include:
-- Dashboard API connectivity
-- Bedrock proxy authentication
-- CloudWatch logs verification
-- DynamoDB table access
-- Website accessibility
+### Test Coverage
+- ✅ **Cross-partition connectivity** and authentication
+- ✅ **Claude 4.1 inference** via inference profiles
+- ✅ **Claude 3.5 Sonnet** direct model access
+- ✅ **Model discovery API** listing all available models
+- ✅ **Dashboard API** for request logs and metrics
+- ✅ **Error handling** and retry logic
+- ✅ **CloudWatch logging** and DynamoDB audit trails
 
 ### Manual Testing
 
@@ -281,10 +382,24 @@ See `.kiro/specs/cross-partition-inference/roadmap.md` for future enhancements:
 
 ## 📝 Documentation
 
-- `infrastructure/README.md` - Infrastructure deployment details
-- `lambda/README.md` - Lambda function documentation
+### Core Documentation
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Complete system architecture and design
+- **[README.md](README.md)** - This file: Quick start and overview
 
-- `aws-profile-guide.md` - AWS profile usage guide
+### Setup & Configuration Guides  
+- **[create-comprehensive-bedrock-api-key.md](create-comprehensive-bedrock-api-key.md)** - Bedrock API key creation
+- **[aws-profile-guide.md](aws-profile-guide.md)** - AWS CLI profile configuration
+- **[bedrock-enhanced-policy.json](bedrock-enhanced-policy.json)** - Enhanced IAM policy template
+
+### Component Documentation
+- **[infrastructure/README.md](infrastructure/README.md)** - Infrastructure deployment details
+- **[lambda/README.md](lambda/README.md)** - Lambda function implementation
+- **[.kiro/specs/cross-partition-inference/](/.kiro/specs/cross-partition-inference/)** - Feature specifications
+
+### Testing & Validation
+- All test scripts include inline documentation
+- CloudWatch logs provide detailed execution traces
+- DynamoDB audit logs for request analysis
 
 ## 🤝 Contributing
 
