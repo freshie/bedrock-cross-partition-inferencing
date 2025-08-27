@@ -176,45 +176,49 @@ def create_bedrock_session(credentials):
         logger.error(f"Failed to create Bedrock session: {str(e)}")
         raise Exception("Unable to create Bedrock session")
 
-def create_inference_profile(session, model_id):
+def get_inference_profile_id(model_id):
     """
-    Create an inference profile for models that require it
+    Get the inference profile ID for models that require it
+    Maps model IDs to their corresponding system-defined inference profile IDs
     """
-    try:
-        bedrock_client = session.client('bedrock')
+    # Mapping of model IDs to their inference profile IDs
+    model_to_profile_map = {
+        # Claude models
+        'anthropic.claude-3-5-sonnet-20241022-v2:0': 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+        'anthropic.claude-3-5-sonnet-20240620-v1:0': 'us.anthropic.claude-3-5-sonnet-20240620-v1:0',
+        'anthropic.claude-3-5-haiku-20241022-v1:0': 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
+        'anthropic.claude-3-opus-20240229-v1:0': 'us.anthropic.claude-3-opus-20240229-v1:0',
+        'anthropic.claude-3-sonnet-20240229-v1:0': 'us.anthropic.claude-3-sonnet-20240229-v1:0',
+        'anthropic.claude-3-haiku-20240307-v1:0': 'us.anthropic.claude-3-haiku-20240307-v1:0',
+        'anthropic.claude-opus-4-20250514-v1:0': 'us.anthropic.claude-opus-4-20250514-v1:0',
+        'anthropic.claude-sonnet-4-20250514-v1:0': 'us.anthropic.claude-sonnet-4-20250514-v1:0',
+        'anthropic.claude-3-7-sonnet-20250219-v1:0': 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
+        'anthropic.claude-opus-4-1-20250805-v1:0': 'us.anthropic.claude-opus-4-1-20250805-v1:0',
         
-        # Generate a profile name based on the model
-        profile_name = f"cross-partition-{model_id.replace(':', '-').replace('.', '-')}"
+        # Meta Llama models
+        'meta.llama3-1-8b-instruct-v1:0': 'us.meta.llama3-1-8b-instruct-v1:0',
+        'meta.llama3-1-70b-instruct-v1:0': 'us.meta.llama3-1-70b-instruct-v1:0',
+        'meta.llama3-2-1b-instruct-v1:0': 'us.meta.llama3-2-1b-instruct-v1:0',
+        'meta.llama3-2-3b-instruct-v1:0': 'us.meta.llama3-2-3b-instruct-v1:0',
+        'meta.llama3-2-11b-instruct-v1:0': 'us.meta.llama3-2-11b-instruct-v1:0',
+        'meta.llama3-2-90b-instruct-v1:0': 'us.meta.llama3-2-90b-instruct-v1:0',
+        'meta.llama3-3-70b-instruct-v1:0': 'us.meta.llama3-3-70b-instruct-v1:0',
+        'meta.llama4-scout-17b-instruct-v1:0': 'us.meta.llama4-scout-17b-instruct-v1:0',
+        'meta.llama4-maverick-17b-instruct-v1:0': 'us.meta.llama4-maverick-17b-instruct-v1:0',
         
-        try:
-            # Try to create the inference profile
-            response = bedrock_client.create_inference_profile(
-                inferenceProfileName=profile_name,
-                description=f"Cross-partition inference profile for {model_id}",
-                modelSource={
-                    'copyFrom': model_id
-                }
-            )
-            return response.get('inferenceProfileArn')
-            
-        except Exception as create_error:
-            error_str = str(create_error)
-            if "already exists" in error_str.lower() or "conflictexception" in error_str.lower():
-                # Profile already exists, list and find it
-                try:
-                    list_response = bedrock_client.list_inference_profiles()
-                    for profile in list_response.get('inferenceProfileSummaries', []):
-                        if profile.get('inferenceProfileName') == profile_name:
-                            return profile.get('inferenceProfileArn')
-                except Exception as list_error:
-                    logger.error(f"Failed to list inference profiles: {str(list_error)}")
-            
-            logger.error(f"Failed to create inference profile: {str(create_error)}")
-            return None
+        # Amazon Nova models
+        'amazon.nova-premier-v1:0': 'us.amazon.nova-premier-v1:0',
+        'amazon.nova-pro-v1:0': 'us.amazon.nova-pro-v1:0',
+        'amazon.nova-lite-v1:0': 'us.amazon.nova-lite-v1:0',
+        'amazon.nova-micro-v1:0': 'us.amazon.nova-micro-v1:0',
         
-    except Exception as e:
-        logger.error(f"Failed to create inference profile: {str(e)}")
-        return None
+        # Other models
+        'deepseek.r1-v1:0': 'us.deepseek.r1-v1:0',
+        'mistral.pixtral-large-2502-v1:0': 'us.mistral.pixtral-large-2502-v1:0',
+        'twelvelabs.pegasus-1-2-v1:0': 'us.twelvelabs.pegasus-1-2-v1:0',
+    }
+    
+    return model_to_profile_map.get(model_id)
 
 def forward_to_bedrock(commercial_creds, request_data):
     """
@@ -231,7 +235,7 @@ def forward_to_bedrock(commercial_creds, request_data):
         else:
             body_json = body_data
         
-        # Check if we have a Bedrock API key (preferred method)
+        # Check if we have a Bedrock API key (preferred method for cross-partition)
         if 'bedrock_api_key' in commercial_creds:
             return forward_with_api_key(commercial_creds['bedrock_api_key'], model_id, body_json)
         else:
@@ -312,14 +316,11 @@ def forward_with_aws_credentials(commercial_creds, model_id, body_json):
         except Exception as e:
             error_str = str(e)
             if "inference profile" in error_str.lower() or "on-demand throughput" in error_str.lower():
-                # Model requires inference profile, try to create one and retry
-                logger.info(f"Model {model_id} requires inference profile, attempting to create one")
+                # Model requires inference profile, use the system-defined one
+                logger.info(f"Model {model_id} requires inference profile, looking up system-defined profile")
                 
-                profile_arn = create_inference_profile(session, model_id)
-                if profile_arn:
-                    # Extract profile ID from ARN and retry
-                    profile_id = profile_arn.split('/')[-1]
-                    
+                profile_id = get_inference_profile_id(model_id)
+                if profile_id:
                     logger.info(f"Retrying with inference profile: {profile_id}")
                     response = bedrock_client.invoke_model(
                         modelId=profile_id,
@@ -334,6 +335,8 @@ def forward_with_aws_credentials(commercial_creds, model_id, body_json):
                         'body': response_body,
                         'contentType': response.get('contentType', 'application/json')
                     }
+                else:
+                    logger.error(f"No inference profile mapping found for model: {model_id}")
             
             # Re-raise the original exception
             raise e

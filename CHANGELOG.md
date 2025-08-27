@@ -5,6 +5,58 @@ All notable changes to the Cross-Partition AI Inference System will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-08-27 - "Claude 4.1 Ready" Release
+
+### 🎉 Major Enhancement - Claude 4.1 Support
+
+Successfully implemented and tested Claude 4.1 (Opus) cross-partition inference with proper Bedrock API key authentication.
+
+### ✨ Features Added
+
+#### Authentication & Security
+- **Proper Bedrock API Keys**: Implemented service-specific credentials for Bedrock authentication
+- **Enhanced Lambda Function**: Added `requests` library support for HTTP-based Bedrock API calls
+- **Dual Authentication Support**: API key authentication with AWS credentials fallback
+- **Comprehensive IAM Policies**: Full Bedrock access including inference profiles
+
+#### Model Support
+- **Claude 4.1 (Opus) Support**: Successfully tested cross-partition inference with latest Anthropic model
+- **Inference Profile Automation**: Automatic handling of models requiring system-defined inference profiles
+- **Enhanced Error Handling**: Better error messages and debugging information
+
+#### Documentation & Configuration
+- **API Key Reference Documentation**: Comprehensive guides for Bedrock API key creation and management
+- **Configuration Management**: Improved local configuration system with API endpoint management
+- **Testing Scripts**: Enhanced test scripts with better error reporting and status indicators
+
+### 🔧 Technical Improvements
+
+#### Lambda Function Enhancements
+- **Dependencies**: Added `requests==2.31.0` to requirements.txt
+- **API Key Handling**: Proper base64 decoding and format validation
+- **Error Handling**: Enhanced error messages for debugging
+- **Logging**: Improved CloudWatch logging for troubleshooting
+
+#### Infrastructure
+- **Secrets Manager**: Updated with proper Bedrock service-specific credentials
+- **IAM Policies**: Enhanced with comprehensive Bedrock permissions
+- **Deployment**: Improved Lambda deployment with dependency management
+
+### 🧪 Testing & Validation
+- **Claude 4.1 Testing**: Successful cross-partition inference with 200-token responses
+- **API Key Validation**: Confirmed proper Bedrock API key format and authentication
+- **End-to-End Flow**: Validated complete GovCloud → Commercial AWS → Bedrock flow
+
+### 📚 Documentation Updates
+- **BEDROCK_API_KEY_REFERENCE.md**: New reference guide for API key management
+- **bedrock-api-key-config.json**: Local configuration tracking for API keys
+- **Enhanced Error Troubleshooting**: Better debugging guides and common issues
+
+### 🔒 Security Enhancements
+- **Service-Specific Credentials**: Using proper Bedrock API keys instead of general AWS access keys
+- **Credential Rotation**: 6-month expiration tracking for API keys
+- **Secure Storage**: Proper Secrets Manager integration with encrypted storage
+
 ## [1.0.0] - 2025-08-27 - "Over the Internet" Release
 
 ### 🎉 Initial Release

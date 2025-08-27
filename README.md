@@ -10,7 +10,7 @@
 
 [![AWS](https://img.shields.io/badge/AWS-GovCloud%20%2B%20Commercial-orange)](https://aws.amazon.com/)
 [![Bedrock](https://img.shields.io/badge/Amazon-Bedrock-blue)](https://aws.amazon.com/bedrock/)
-[![Version](https://img.shields.io/badge/Version-1.1.0%20GitHub%20Ready-green)](https://github.com/freshie/bedrock-cross-partition-inferencing/releases)
+[![Version](https://img.shields.io/badge/Version-1.2.0%20Claude%204.1%20Ready-green)](https://github.com/freshie/bedrock-cross-partition-inferencing/releases)
 [![Serverless](https://img.shields.io/badge/Serverless-Lambda%20%2B%20API%20Gateway-blueviolet)](https://aws.amazon.com/serverless/)
 [![Security](https://img.shields.io/badge/Security-IAM%20%2B%20Secrets%20Manager-red)](https://aws.amazon.com/security/)
 
@@ -56,7 +56,7 @@ Enhanced security through encrypted tunnels between AWS partitions with private 
 
 Enterprise-grade solution with dedicated private network connections for maximum performance and security.
 
-## ⚡ **What This Version Does (v1.1.0)**
+## ⚡ **What This Version Does (v1.2.0)**
 
 ### 🎯 **Current Capabilities**
 - ✅ **Cross-Partition AI Access**: GovCloud apps can use Claude 4.1, Nova Premier, Llama 4
