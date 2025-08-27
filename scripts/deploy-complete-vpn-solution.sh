@@ -440,11 +440,38 @@ main() {
     
     echo -e "${GREEN}🎉 VPN solution deployment completed successfully!${NC}"
     echo ""
+    
+    # Auto-generate configuration if extract script is available
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -f "${SCRIPT_DIR}/extract-vpn-config.sh" ]; then
+        echo -e "${YELLOW}🔧 Auto-generating VPN configuration...${NC}"
+        
+        if "${SCRIPT_DIR}/extract-vpn-config.sh" \
+            --project-name "$PROJECT_NAME" \
+            --environment "$ENVIRONMENT" \
+            --govcloud-profile "$GOVCLOUD_PROFILE" \
+            --commercial-profile "$COMMERCIAL_PROFILE"; then
+            
+            echo -e "${GREEN}✅ VPN configuration generated successfully${NC}"
+            
+            # Auto-load configuration if in current directory
+            if [ -f "./config-vpn.sh" ]; then
+                echo -e "${YELLOW}🔄 Auto-loading configuration...${NC}"
+                source "./config-vpn.sh"
+                echo -e "${GREEN}✅ Configuration loaded and ready to use${NC}"
+            fi
+        else
+            echo -e "${YELLOW}⚠️ Configuration generation failed, but deployment completed${NC}"
+        fi
+    fi
+    
     echo -e "${BLUE}📋 Next Steps:${NC}"
-    echo "1. Configure local environment using: ./get-vpn-config.sh"
-    echo "2. Test cross-partition connectivity"
-    echo "3. Monitor VPN health via CloudWatch dashboards"
-    echo "4. Review compliance reports in S3"
+    echo "1. Load the configuration: source config-vpn.sh"
+    echo "2. Validate the setup: validate_vpn_config"
+    echo "3. Test VPN connectivity: test_vpn_connectivity"
+    echo "4. Test the Lambda function: aws lambda invoke --function-name \$LAMBDA_FUNCTION_NAME response.json"
+    echo "5. Monitor VPN status: ${SCRIPT_DIR}/get-vpn-status.sh watch"
+    echo "6. Review monitoring dashboard: echo \$MONITORING_DASHBOARD_URL"
 }
 
 # Run main function

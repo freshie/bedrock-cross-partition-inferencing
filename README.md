@@ -261,6 +261,8 @@ We recommend a three-phase implementation strategy that allows organizations to 
 
 ## 🤝 **Contributing**
 
+Want to contribute? Check out our [Contributing Guide](CONTRIBUTING.md)!
+
 We follow a structured branching strategy for development. Please see our [Branching Strategy](BRANCHING_STRATEGY.md) for detailed workflow information.
 
 **Quick Start:**
@@ -299,25 +301,6 @@ This is an educational/demonstration project showcasing cross-partition AI infer
 - Test thoroughly in your environment
 - Validate against your organization's data governance policies
 
-## 👥 **Contributors**
-
-Thanks to all the amazing people who have contributed to this project! 🎉
-
-<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
-<!-- prettier-ignore-start -->
-<!-- markdownlint-disable -->
-<table>
-  <tr>
-    <td align="center"><a href="https://github.com/freshie"><img src="https://github.com/freshie.png" width="100px;" alt=""/><br /><sub><b>freshie</b></sub></a><br />💻 📖 🎨 🚧</td>
-  </tr>
-</table>
-
-<!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
-<!-- ALL-CONTRIBUTORS-LIST:END -->
-
-Want to contribute? Check out our [Contributing Guide](CONTRIBUTING.md)!
-
 ## 📚 **Documentation**
 
 ### **📖 Architecture & Technical Details**
@@ -342,7 +325,6 @@ Want to contribute? Check out our [Contributing Guide](CONTRIBUTING.md)!
 - 💬 [**Discussions**](https://github.com/freshie/bedrock-cross-partition-inferencing/discussions) - Community Q&A
 - 🤝 [**Contributing**](CONTRIBUTING.md) - How to contribute to the project
 - 🛡️ [**Security Policy**](SECURITY.md) - Security vulnerability reporting
-- 📋 [**Code of Conduct**](CODE_OF_CONDUCT.md) - Community guidelines
 
 ---
 

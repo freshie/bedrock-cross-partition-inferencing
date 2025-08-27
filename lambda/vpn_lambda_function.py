@@ -10,6 +10,16 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from functools import lru_cache
 from typing import Dict, Any, Optional
 
+# Import performance optimizations
+from performance_optimizations import (
+    performance_optimized, 
+    get_performance_optimizer,
+    get_connection_pool,
+    get_response_cache,
+    cache_response,
+    optimize_memory_usage
+)
+
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -63,12 +73,19 @@ class VPCEndpointConnectionPool:
 # Global connection pool instance
 connection_pool = VPCEndpointConnectionPool()
 
+@performance_optimized
 def lambda_handler(event, context):
     """
     Main Lambda handler for cross-partition Bedrock requests via VPN
+    Enhanced with performance optimizations for VPC deployment
     """
     request_id = str(uuid.uuid4())
     start_time = time.time()
+    
+    # Get performance optimizer from context
+    optimizer = event.get('_performance_context', {}).get('optimizer')
+    if optimizer:
+        logger.info(f"Request {request_id}: Using performance optimizations")
     
     # Log VPC configuration for debugging
     logger.info(f"Request {request_id}: VPC endpoint configuration - "
@@ -107,6 +124,10 @@ def lambda_handler(event, context):
         
         # Send custom metrics via VPC endpoint
         send_custom_metrics(request_id, latency, True)
+        
+        # Optimize memory usage periodically
+        if request_id.endswith('0'):  # Every ~10th request
+            optimize_memory_usage()
         
         # Return successful response with VPN metadata
         return {
@@ -202,47 +223,16 @@ def parse_request(event):
 def get_commercial_credentials_vpc():
     """
     Retrieve commercial Bedrock API key from Secrets Manager via VPC endpoint
+    Enhanced with caching for performance
     """
     try:
-        secrets_client = connection_pool.get_secrets_client()
+        # Use performance optimizer for cached credentials
+        optimizer = get_performance_optimizer()
+        return optimizer.get_cached_credentials()
         
-        # Add retry logic with exponential backoff for VPC endpoint calls
-        max_retries = 3
-        base_delay = 0.1
-        
-        for attempt in range(max_retries):
-            try:
-                response = secrets_client.get_secret_value(SecretId=COMMERCIAL_CREDENTIALS_SECRET)
-                secret_data = json.loads(response['SecretString'])
-                
-                # Check for bedrock_api_key (the working format)
-                if 'bedrock_api_key' in secret_data:
-                    logger.info("Successfully retrieved Bedrock API key via VPC endpoint")
-                    return secret_data
-                
-                # Fallback to AWS credentials format if available
-                required_keys = ['aws_access_key_id', 'aws_secret_access_key']
-                for key in required_keys:
-                    if key not in secret_data:
-                        raise ValueError(f"Missing required credential: {key}")
-                
-                logger.info("Successfully retrieved AWS credentials via VPC endpoint")
-                return secret_data
-                
-            except ClientError as e:
-                if attempt < max_retries - 1:
-                    delay = base_delay * (2 ** attempt)
-                    logger.warning(f"VPC endpoint call failed (attempt {attempt + 1}), retrying in {delay}s: {str(e)}")
-                    time.sleep(delay)
-                else:
-                    raise e
-        
-    except ClientError as e:
+    except Exception as e:
         logger.error(f"Failed to retrieve commercial credentials via VPC endpoint: {str(e)}")
         raise Exception("Unable to retrieve commercial credentials via VPC endpoint")
-    except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON in secrets: {str(e)}")
-        raise Exception("Invalid credential format in Secrets Manager")
 
 def create_bedrock_session_vpc(credentials):
     """
