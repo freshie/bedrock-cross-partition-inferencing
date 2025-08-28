@@ -72,6 +72,7 @@ docs/drafts/*.docx
 # Test Files and Results
 test_*.json
 *_test.json
+*_test_results.json
 test-results-*.json
 response*.json
 final_test.json
