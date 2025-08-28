@@ -90,9 +90,8 @@ __pycache__/
 .coverage
 .pytest_cache/
 
-# Old Output Files (keep recent ones)
-outputs/*.txt
-!outputs/README.md
+# Output Files
+outputs/
 
 # Lambda Deployment Artifacts
 lambda/*.zip
