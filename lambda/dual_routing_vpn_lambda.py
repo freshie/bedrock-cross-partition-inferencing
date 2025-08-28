@@ -248,20 +248,20 @@ def lambda_handler(event, context):
         request_data = parse_request(event)
         logger.info(f"Request {request_id}: Parsed request for model {request_data.get('modelId')}")
         
-        # Get commercial Bedrock credentials via VPC endpoint with retry logic
+        # Get Bedrock bearer token via VPC endpoint with retry logic
         try:
-            commercial_creds = get_commercial_credentials_vpc_with_retry(request_id)
-            logger.info(f"Request {request_id}: Retrieved commercial credentials via VPC endpoint")
-        except Exception as cred_error:
+            bearer_token = get_bedrock_bearer_token_vpc_with_retry(request_id)
+            logger.info(f"Request {request_id}: Retrieved Bedrock bearer token via VPC endpoint")
+        except Exception as token_error:
             raise AuthenticationError(
-                message='Failed to retrieve commercial credentials',
+                message='Failed to retrieve Bedrock bearer token',
                 routing_method=ROUTING_METHOD,
-                details={'credential_error': str(cred_error)}
+                details={'token_error': str(token_error)}
             )
         
         # Forward request to commercial Bedrock via VPN with enhanced error handling
         try:
-            response = forward_to_bedrock_vpn_enhanced(commercial_creds, request_data, request_id)
+            response = make_bedrock_request_vpn(bearer_token, request_data['modelId'], request_data['body'], request_id)
             logger.info(f"Request {request_id}: Successfully forwarded to commercial Bedrock via VPN")
         except Exception as bedrock_error:
             raise ServiceError(
@@ -366,49 +366,89 @@ def parse_request(event):
         logger.error(f"Failed to parse request: {str(e)}")
         raise ValueError(f"Invalid request format: {str(e)}")
 
-def get_commercial_credentials_vpc():
+def get_bedrock_bearer_token_vpc():
     """
-    Retrieve commercial Bedrock credentials from Secrets Manager via VPC endpoint
+    Retrieve Bedrock bearer token from environment variable or Secrets Manager via VPC endpoint
     """
+    # First try environment variable (for local testing)
+    bearer_token = os.environ.get('AWS_BEARER_TOKEN_BEDROCK')
+    if bearer_token:
+        logger.info("Using bearer token from environment variable")
+        return bearer_token
+    
+    # Fall back to Secrets Manager via VPC endpoint
     try:
         secrets_client = vpc_clients.get_secrets_client()
         response = secrets_client.get_secret_value(SecretId=COMMERCIAL_CREDENTIALS_SECRET)
         secret_data = json.loads(response['SecretString'])
         
-        # Check for bedrock_api_key (preferred format)
-        if 'bedrock_api_key' in secret_data:
-            return secret_data
+        bearer_token = secret_data.get('bedrock_bearer_token')
+        if not bearer_token:
+            raise ValueError("Bearer token not found in secrets")
         
-        # Fallback to AWS credentials format if available
-        required_keys = ['aws_access_key_id', 'aws_secret_access_key']
-        for key in required_keys:
-            if key not in secret_data:
-                raise ValueError(f"Missing required credential: {key}")
-        
-        return secret_data
+        logger.info("Using bearer token from Secrets Manager via VPC endpoint")
+        return bearer_token
         
     except ClientError as e:
-        logger.error(f"Failed to retrieve commercial credentials via VPC endpoint: {str(e)}")
-        raise Exception("Unable to retrieve commercial credentials via VPC endpoint")
+        logger.error(f"Failed to retrieve bearer token via VPC endpoint: {str(e)}")
+        raise Exception("Unable to retrieve Bedrock bearer token via VPC endpoint")
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON in secrets: {str(e)}")
         raise Exception("Invalid credential format in Secrets Manager")
 
-def get_commercial_credentials_vpc_with_retry(request_id, max_retries=3):
+def get_bedrock_bearer_token_vpc_with_retry(request_id, max_retries=3):
     """
-    Retrieve commercial credentials with retry logic for VPC endpoint failures
+    Retrieve Bedrock bearer token with retry logic for VPC endpoint failures
     """
     for attempt in range(max_retries):
         try:
-            return get_commercial_credentials_vpc()
+            return get_bedrock_bearer_token_vpc()
         except Exception as e:
             if attempt < max_retries - 1:
                 wait_time = (2 ** attempt) * 0.5  # Exponential backoff
-                logger.warning(f"Request {request_id}: Credentials retrieval failed (attempt {attempt + 1}), retrying in {wait_time}s: {str(e)}")
+                logger.warning(f"Request {request_id}: Bearer token retrieval failed (attempt {attempt + 1}), retrying in {wait_time}s: {str(e)}")
                 time.sleep(wait_time)
             else:
-                logger.error(f"Request {request_id}: All credential retrieval attempts failed")
-                raise Exception(f"Failed to retrieve credentials after {max_retries} attempts: {str(e)}")
+                logger.error(f"Request {request_id}: All bearer token retrieval attempts failed")
+                raise Exception(f"Failed to retrieve bearer token after {max_retries} attempts: {str(e)}")
+
+def make_bedrock_request_vpn(bearer_token, model_id, request_body, request_id):
+    """
+    Make direct HTTP request to Bedrock using bearer token authentication via VPN
+    """
+    try:
+        # Bedrock endpoint URL
+        bedrock_url = f"https://bedrock-runtime.us-east-1.amazonaws.com/model/{model_id}/invoke"
+        
+        headers = {
+            'Authorization': f'Bearer {bearer_token}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+        
+        # Make HTTP request to Bedrock via VPN
+        req = urllib.request.Request(
+            bedrock_url,
+            data=json.dumps(request_body).encode('utf-8'),
+            headers=headers,
+            method='POST'
+        )
+        
+        with urllib.request.urlopen(req, timeout=45) as response:  # Longer timeout for VPN
+            response_data = json.loads(response.read().decode('utf-8'))
+            logger.info(f"Request {request_id}: Bedrock request successful via VPN")
+            return response_data
+            
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode('utf-8') if e.fp else 'No error details'
+        logger.error(f"Request {request_id}: Bedrock HTTP error via VPN {e.code}: {error_body}")
+        raise Exception(f"Bedrock request failed via VPN: {e.code} - {error_body}")
+    except urllib.error.URLError as e:
+        logger.error(f"Request {request_id}: Bedrock URL error via VPN: {str(e)}")
+        raise Exception(f"Network error accessing Bedrock via VPN: {str(e)}")
+    except Exception as e:
+        logger.error(f"Request {request_id}: Unexpected error in Bedrock request via VPN: {str(e)}")
+        raise Exception(f"Failed to invoke Bedrock model via VPN: {str(e)}")
 
 def classify_vpn_error(error_message):
     """

@@ -72,20 +72,20 @@ def lambda_handler(event, context):
         request_data = parse_request(event)
         logger.info(f"Request {request_id}: Parsed request for model {request_data.get('modelId')}")
         
-        # Get commercial Bedrock credentials
+        # Get Bedrock bearer token
         try:
-            commercial_creds = get_commercial_credentials()
-            logger.info(f"Request {request_id}: Retrieved commercial credentials")
-        except Exception as cred_error:
+            bearer_token = get_bedrock_bearer_token()
+            logger.info(f"Request {request_id}: Retrieved Bedrock bearer token")
+        except Exception as token_error:
             raise AuthenticationError(
-                message='Failed to retrieve commercial credentials',
+                message='Failed to retrieve Bedrock bearer token',
                 routing_method=ROUTING_METHOD,
-                details={'credential_error': str(cred_error)}
+                details={'token_error': str(token_error)}
             )
         
-        # Forward request to commercial Bedrock via internet
+        # Forward request to commercial Bedrock via internet using bearer token
         try:
-            response = forward_to_bedrock(commercial_creds, request_data)
+            response = make_bedrock_request(bearer_token, request_data['modelId'], request_data['body'])
             logger.info(f"Request {request_id}: Successfully forwarded to commercial Bedrock via internet")
         except Exception as bedrock_error:
             # Check if it's a network error
@@ -197,46 +197,71 @@ def parse_request(event):
         logger.error(f"Failed to parse request: {str(e)}")
         raise ValueError(f"Invalid request format: {str(e)}")
 
-def get_commercial_credentials():
+def get_bedrock_bearer_token():
     """
-    Retrieve commercial credentials from Secrets Manager
+    Retrieve Bedrock bearer token from environment variable or Secrets Manager
     """
+    # First try environment variable (for local testing)
+    bearer_token = os.environ.get('AWS_BEARER_TOKEN_BEDROCK')
+    if bearer_token:
+        logger.info("Using bearer token from environment variable")
+        return bearer_token
+    
+    # Fall back to Secrets Manager
     try:
         response = secrets_client.get_secret_value(SecretId=COMMERCIAL_CREDENTIALS_SECRET)
         secret_data = json.loads(response['SecretString'])
         
-        # Check for bedrock_api_key (preferred format)
-        if 'bedrock_api_key' in secret_data:
-            return secret_data
+        bearer_token = secret_data.get('bedrock_bearer_token')
+        if not bearer_token:
+            raise ValueError("Bearer token not found in secrets")
         
-        # Fallback to AWS credentials format if available
-        required_keys = ['aws_access_key_id', 'aws_secret_access_key']
-        for key in required_keys:
-            if key not in secret_data:
-                raise ValueError(f"Missing required credential: {key}")
-        
-        return secret_data
+        logger.info("Using bearer token from Secrets Manager")
+        return bearer_token
         
     except ClientError as e:
-        logger.error(f"Failed to retrieve commercial credentials: {str(e)}")
-        raise Exception("Unable to retrieve commercial credentials")
+        logger.error(f"Failed to retrieve bearer token from Secrets Manager: {str(e)}")
+        raise Exception("Unable to retrieve Bedrock bearer token")
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON in secrets: {str(e)}")
         raise Exception("Invalid credential format in Secrets Manager")
 
-def create_bedrock_session(credentials):
+def make_bedrock_request(bearer_token, model_id, request_body):
     """
-    Create AWS session with commercial credentials for Bedrock access
+    Make direct HTTP request to Bedrock using bearer token authentication
     """
     try:
-        # Create session with commercial AWS credentials
-        session = boto3.Session(
-            aws_access_key_id=credentials['aws_access_key_id'],
-            aws_secret_access_key=credentials['aws_secret_access_key'],
-            region_name=credentials.get('region', 'us-east-1')
+        # Bedrock endpoint URL
+        bedrock_url = f"https://bedrock-runtime.us-east-1.amazonaws.com/model/{model_id}/invoke"
+        
+        headers = {
+            'Authorization': f'Bearer {bearer_token}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+        
+        # Make HTTP request to Bedrock
+        req = urllib.request.Request(
+            bedrock_url,
+            data=json.dumps(request_body).encode('utf-8'),
+            headers=headers,
+            method='POST'
         )
         
-        return session
+        with urllib.request.urlopen(req, timeout=30) as response:
+            response_data = json.loads(response.read().decode('utf-8'))
+            return response_data
+            
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode('utf-8') if e.fp else 'No error details'
+        logger.error(f"Bedrock HTTP error {e.code}: {error_body}")
+        raise Exception(f"Bedrock request failed: {e.code} - {error_body}")
+    except urllib.error.URLError as e:
+        logger.error(f"Bedrock URL error: {str(e)}")
+        raise Exception(f"Network error accessing Bedrock: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error in Bedrock request: {str(e)}")
+        raise Exception(f"Failed to invoke Bedrock model: {str(e)}")
         
     except Exception as e:
         logger.error(f"Failed to create Bedrock session: {str(e)}")
