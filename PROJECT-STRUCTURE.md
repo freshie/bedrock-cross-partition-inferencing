@@ -31,7 +31,7 @@ cross-partition-inferencing/
 | `ARCHITECTURE.md` | Detailed system architecture and design decisions |
 | `CHANGELOG.md` | Version history and release notes |
 | `CURRENT-STATE-v1.3.0.md` | Current system state and deployment status |
-| `RELEASE-NOTES-v1.3.0.md` | Detailed release notes for v1.3.0 |
+| `docs/RELEASE-NOTES-v1.3.0.md` | Detailed release notes for v1.3.0 |
 | `SECURITY-APPROVAL.md` | Security review and approval documentation |
 
 ## 🏗️ **Infrastructure Components**
@@ -112,6 +112,36 @@ cross-partition-inferencing/
 - `configs/` - Configuration templates and examples
 - `.gitignore` - Prevents sensitive data from being committed
 - Security scanning scripts ensure no credentials are exposed
+
+## 📚 **Documentation Directory** (`docs/`)
+
+### **Release Documentation**
+- `RELEASE-NOTES-v1.3.0.md` - Security Enhanced Release notes
+- `RELEASE-NOTES-v1.3.1.md` - Repository Cleanup Release notes
+- `RELEASE-NOTES-v1.3.2.md` - Autofix Release notes
+
+### **Setup and Configuration**
+- `SETUP_GUIDE.md` - Complete setup instructions
+- `aws-profile-guide.md` - AWS profile configuration
+- `SETUP_COMMERCIAL_CREDENTIALS.md` - Commercial AWS setup
+
+### **VPN Documentation**
+- `VPN-Deployment-Guide.md` - VPN deployment instructions
+- `VPN-Configuration-Management.md` - VPN configuration management
+- `VPN-Operations-Guide.md` - VPN operations and maintenance
+- `VPN-Troubleshooting-Guide.md` - VPN troubleshooting procedures
+- `vpn-deployment-status-report.md` - Current VPN deployment status
+- `vpn-testing-comparison.md` - VPN testing results and comparisons
+- `vpn-tunnel-setup-guide.md` - VPN tunnel setup instructions
+
+### **Technical Documentation**
+- `TECHNICAL_SUMMARY.md` - Technical overview and architecture
+- `Network-Architecture-Diagrams.md` - Network architecture diagrams
+- `VPC-Endpoint-Configuration.md` - VPC endpoint configuration
+- `Migration-Guide.md` - Migration procedures and guidelines
+
+### **Security Documentation**
+- `SECURITY-CHECKLIST.md` - Security validation checklist
 
 ## 🎯 **Development Workflow**
 
