@@ -5,6 +5,38 @@ All notable changes to the Cross-Partition AI Inference System will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2025-08-27 - "Cleanup Release"
+
+### 🧹 Major Repository Cleanup and Organization
+
+Comprehensive cleanup of unused files and improved project organization for better maintainability and readability.
+
+### ✨ Improvements
+- **Repository Cleanup**: Removed 24 unused files including old test results, build artifacts, and duplicate files
+- **Enhanced Documentation**: Added PROJECT-STRUCTURE.md for better navigation
+- **Automated Maintenance**: Created cleanup-project.sh script for ongoing maintenance
+- **Improved .gitignore**: Enhanced patterns to prevent future clutter
+- **Better Organization**: Clear file structure with documented purposes
+
+### 🗑️ Files Removed
+- Old test JSON files (test_*.json, response*.json)
+- Outdated documentation (CURRENT_STATUS.md, DEPLOYMENT_STATUS.md)
+- Build artifacts (.coverage, build/ directory contents)
+- Old lambda deployment files and duplicates
+- Temporary test results and logs
+
+### 📚 Documentation Added
+- **PROJECT-STRUCTURE.md**: Complete guide to repository organization
+- **outputs/README.md**: Explains generated output files
+- **scripts/cleanup-project.sh**: Automated cleanup tool
+
+### 🎯 Benefits
+- Cleaner, more organized repository structure
+- Better navigation and documentation
+- Automated cleanup tools for maintenance
+- Improved readability and maintainability
+- Future-proofed against file accumulation
+
 ## [1.3.0] - 2025-08-27 - "Security Enhanced" Release
 
 ### 🔒 Major Security Enhancement - Comprehensive Security Framework
