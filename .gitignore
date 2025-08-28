@@ -63,8 +63,42 @@ temp/
 *.tar.gz
 *.tar
 gh.tar.gz
-lambda-deployment.zip
+lambda-deployment*.zip
 
 # Draft and Working Files
 docs/drafts/*.docx
 *.docx
+
+# Test Files and Results
+test_*.json
+*_test.json
+test-results-*.json
+response*.json
+final_test.json
+
+# Build Artifacts
+build/
+dist/
+*.egg-info/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.coverage
+.pytest_cache/
+
+# Old Output Files (keep recent ones)
+outputs/*.txt
+!outputs/README.md
+
+# Lambda Deployment Artifacts
+lambda/*.zip
+lambda/*deployment*
+
+# Backup Files
+*.backup
+*.bak
+*~
