@@ -1,0 +1,599 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Comprehensive monitoring and logging infrastructure for dual routing'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: 'cross-partition-dual-routing'
+    Description: 'Project name for resource naming'
+  
+  Environment:
+    Type: String
+    Default: 'prod'
+    AllowedValues: ['dev', 'staging', 'prod']
+    Description: 'Environment name for resource tagging'
+  
+  # Lambda Function Names
+  InternetLambdaFunctionName:
+    Type: String
+    Description: 'Name of the Internet Lambda function'
+  
+  VPNLambdaFunctionName:
+    Type: String
+    Description: 'Name of the VPN Lambda function'
+  
+  # API Gateway Configuration
+  ApiGatewayId:
+    Type: String
+    Description: 'API Gateway ID for monitoring'
+  
+  ApiGatewayStageName:
+    Type: String
+    Default: 'prod'
+    Description: 'API Gateway stage name'
+  
+  # DynamoDB Table
+  RequestLogTableName:
+    Type: String
+    Default: 'cross-partition-requests'
+    Description: 'DynamoDB table name for request logs'
+  
+  # Alert Configuration
+  AlertEmail:
+    Type: String
+    Description: 'Email address for critical alerts'
+    Default: 'admin@example.com'
+  
+  SlackWebhookUrl:
+    Type: String
+    Description: 'Slack webhook URL for notifications (optional)'
+    Default: ''
+    NoEcho: true
+  
+  # Threshold Configuration
+  ErrorRateThreshold:
+    Type: Number
+    Default: 5
+    Description: 'Error rate threshold percentage for alerts'
+  
+  LatencyThreshold:
+    Type: Number
+    Default: 30000
+    Description: 'Latency threshold in milliseconds for alerts'
+  
+  VPNTunnelDownThreshold:
+    Type: Number
+    Default: 3
+    Description: 'Number of VPN errors to trigger tunnel down alert'
+
+Conditions:
+  HasSlackWebhook: !Not [!Equals [!Ref SlackWebhookUrl, '']]
+
+Resources:
+  # SNS Topic for Alerts
+  DualRoutingAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-alerts-${Environment}'
+      DisplayName: 'Dual Routing Alerts'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-alerts-topic-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Email Subscription
+  EmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      TopicArn: !Ref DualRoutingAlertsTopic
+      Endpoint: !Ref AlertEmail
+
+  # CloudWatch Log Groups
+  DualRoutingLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/dual-routing/${ProjectName}-${Environment}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-dual-routing-logs-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Metric Filters for Custom Metrics
+  ErrorRateMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${InternetLambdaFunctionName}'
+      FilterPattern: '[timestamp, requestId="ERROR", ...]'
+      MetricTransformations:
+        - MetricNamespace: 'CrossPartition/DualRouting'
+          MetricName: 'InternetErrorRate'
+          MetricValue: '1'
+          DefaultValue: 0
+          Unit: Count
+
+  VPNErrorRateMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${VPNLambdaFunctionName}'
+      FilterPattern: '[timestamp, requestId="ERROR", ...]'
+      MetricTransformations:
+        - MetricNamespace: 'CrossPartition/DualRouting'
+          MetricName: 'VPNErrorRate'
+          MetricValue: '1'
+          DefaultValue: 0
+          Unit: Count
+
+  VPNTunnelErrorMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${VPNLambdaFunctionName}'
+      FilterPattern: '[timestamp, requestId, level="ERROR", message="*VPN*tunnel*"]'
+      MetricTransformations:
+        - MetricNamespace: 'CrossPartition/DualRouting'
+          MetricName: 'VPNTunnelErrors'
+          MetricValue: '1'
+          DefaultValue: 0
+          Unit: Count
+
+  AuthenticationErrorMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/${ProjectName}-dual-routing-${Environment}'
+      FilterPattern: '[timestamp, requestId, level, message="*authentication*failed*" || message="*unauthorized*"]'
+      MetricTransformations:
+        - MetricNamespace: 'CrossPartition/DualRouting'
+          MetricName: 'AuthenticationErrors'
+          MetricValue: '1'
+          DefaultValue: 0
+          Unit: Count
+
+  # CloudWatch Dashboard
+  DualRoutingDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${ProjectName}-dual-routing-${Environment}'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "CrossPartition/DualRouting", "CrossPartitionRequests", "RoutingMethod", "internet", "Success", "true" ],
+                  [ "...", "vpn", ".", "." ],
+                  [ "...", "internet", ".", "false" ],
+                  [ "...", "vpn", ".", "false" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Request Volume by Routing Method",
+                "period": 300,
+                "stat": "Sum"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "CrossPartition/DualRouting", "CrossPartitionLatency", "RoutingMethod", "internet" ],
+                  [ "...", "vpn" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Response Latency by Routing Method",
+                "period": 300,
+                "stat": "Average"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "CrossPartition/DualRouting/Errors", "ErrorCount", "RoutingMethod", "internet", "ErrorCategory", "authentication" ],
+                  [ "...", "authorization" ],
+                  [ "...", "validation" ],
+                  [ "...", "network" ],
+                  [ "...", "service" ]
+                ],
+                "view": "timeSeries",
+                "stacked": true,
+                "region": "${AWS::Region}",
+                "title": "Internet Routing Errors by Category",
+                "period": 300,
+                "stat": "Sum"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 8,
+              "y": 6,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "CrossPartition/DualRouting/Errors", "ErrorCount", "RoutingMethod", "vpn", "ErrorCategory", "authentication" ],
+                  [ "...", "authorization" ],
+                  [ "...", "validation" ],
+                  [ "...", "vpn_specific" ],
+                  [ "...", "network" ],
+                  [ "...", "service" ]
+                ],
+                "view": "timeSeries",
+                "stacked": true,
+                "region": "${AWS::Region}",
+                "title": "VPN Routing Errors by Category",
+                "period": 300,
+                "stat": "Sum"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 16,
+              "y": 6,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "CrossPartition/DualRouting", "VPCEndpointHealth", "RoutingMethod", "vpn", "EndpointName", "secrets" ],
+                  [ "...", "dynamodb" ],
+                  [ "...", "cloudwatch" ],
+                  [ "...", "vpn_tunnel" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "VPC Endpoint Health",
+                "period": 300,
+                "stat": "Average"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 12,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/Lambda", "Duration", "FunctionName", "${InternetLambdaFunctionName}" ],
+                  [ "...", "${VPNLambdaFunctionName}" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Function Duration",
+                "period": 300,
+                "stat": "Average"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 12,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/Lambda", "Errors", "FunctionName", "${InternetLambdaFunctionName}" ],
+                  [ "...", "${VPNLambdaFunctionName}" ],
+                  [ ".", "Throttles", ".", "${InternetLambdaFunctionName}" ],
+                  [ "...", "${VPNLambdaFunctionName}" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Function Errors and Throttles",
+                "period": 300,
+                "stat": "Sum"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 18,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/ApiGateway", "Count", "ApiName", "${ApiGatewayId}", "Stage", "${ApiGatewayStageName}" ],
+                  [ ".", "4XXError", ".", ".", ".", "." ],
+                  [ ".", "5XXError", ".", ".", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "API Gateway Metrics",
+                "period": 300,
+                "stat": "Sum"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 18,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/ApiGateway", "Latency", "ApiName", "${ApiGatewayId}", "Stage", "${ApiGatewayStageName}" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "API Gateway Latency",
+                "period": 300,
+                "stat": "Average"
+              }
+            }
+          ]
+        }
+
+  # CloudWatch Alarms
+  InternetHighErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-internet-high-error-rate-${Environment}'
+      AlarmDescription: 'High error rate for Internet routing'
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref ErrorRateThreshold
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InternetLambdaFunctionName
+      AlarmActions:
+        - !Ref DualRoutingAlertsTopic
+      TreatMissingData: notBreaching
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-internet-error-alarm-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  VPNHighErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-vpn-high-error-rate-${Environment}'
+      AlarmDescription: 'High error rate for VPN routing'
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref ErrorRateThreshold
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref VPNLambdaFunctionName
+      AlarmActions:
+        - !Ref DualRoutingAlertsTopic
+      TreatMissingData: notBreaching
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-vpn-error-alarm-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  InternetHighLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-internet-high-latency-${Environment}'
+      AlarmDescription: 'High latency for Internet routing'
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref LatencyThreshold
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InternetLambdaFunctionName
+      AlarmActions:
+        - !Ref DualRoutingAlertsTopic
+      TreatMissingData: notBreaching
+
+  VPNHighLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-vpn-high-latency-${Environment}'
+      AlarmDescription: 'High latency for VPN routing'
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref LatencyThreshold
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref VPNLambdaFunctionName
+      AlarmActions:
+        - !Ref DualRoutingAlertsTopic
+      TreatMissingData: notBreaching
+
+  VPNTunnelDownAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-vpn-tunnel-down-${Environment}'
+      AlarmDescription: 'VPN tunnel appears to be down'
+      MetricName: VPNTunnelErrors
+      Namespace: CrossPartition/DualRouting
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: !Ref VPNTunnelDownThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref DualRoutingAlertsTopic
+      TreatMissingData: notBreaching
+
+  AuthenticationFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-auth-failures-${Environment}'
+      AlarmDescription: 'High number of authentication failures'
+      MetricName: AuthenticationErrors
+      Namespace: CrossPartition/DualRouting
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref DualRoutingAlertsTopic
+      TreatMissingData: notBreaching
+
+  # Lambda Function for Custom Metrics Processing
+  MetricsProcessorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-metrics-processor-${Environment}'
+      Description: 'Process and aggregate dual routing metrics'
+      Runtime: python3.9
+      Handler: metrics_processor.lambda_handler
+      Role: !GetAtt MetricsProcessorRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Environment:
+        Variables:
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
+          REQUEST_LOG_TABLE: !Ref RequestLogTableName
+          SNS_TOPIC_ARN: !Ref DualRoutingAlertsTopic
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import logging
+          from datetime import datetime, timedelta
+          
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          def lambda_handler(event, context):
+              """Process dual routing metrics and generate insights"""
+              try:
+                  # This is a placeholder - actual implementation would process metrics
+                  logger.info("Processing dual routing metrics...")
+                  return {'statusCode': 200, 'body': 'Metrics processed successfully'}
+              except Exception as e:
+                  logger.error(f"Error processing metrics: {str(e)}")
+                  return {'statusCode': 500, 'body': f'Error: {str(e)}'}
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-metrics-processor-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # IAM Role for Metrics Processor
+  MetricsProcessorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-metrics-processor-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws-us-gov:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: MetricsProcessorPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:GetItem
+                Resource: !Sub 'arn:aws-us-gov:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RequestLogTableName}'
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                  - cloudwatch:GetMetricStatistics
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref DualRoutingAlertsTopic
+
+  # EventBridge Rule for Scheduled Metrics Processing
+  MetricsProcessingSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${ProjectName}-metrics-schedule-${Environment}'
+      Description: 'Schedule for processing dual routing metrics'
+      ScheduleExpression: 'rate(5 minutes)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt MetricsProcessorFunction.Arn
+          Id: 'MetricsProcessorTarget'
+
+  # Permission for EventBridge to invoke Lambda
+  MetricsProcessorEventPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref MetricsProcessorFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt MetricsProcessingSchedule.Arn
+
+Outputs:
+  DashboardUrl:
+    Description: 'CloudWatch Dashboard URL'
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${ProjectName}-dual-routing-${Environment}'
+    Export:
+      Name: !Sub '${ProjectName}-dashboard-url-${Environment}'
+
+  AlertsTopicArn:
+    Description: 'SNS Topic ARN for alerts'
+    Value: !Ref DualRoutingAlertsTopic
+    Export:
+      Name: !Sub '${ProjectName}-alerts-topic-arn-${Environment}'
+
+  LogGroupName:
+    Description: 'CloudWatch Log Group name'
+    Value: !Ref DualRoutingLogGroup
+    Export:
+      Name: !Sub '${ProjectName}-log-group-name-${Environment}'
+
+  MetricsProcessorFunctionArn:
+    Description: 'Metrics Processor Lambda Function ARN'
+    Value: !GetAtt MetricsProcessorFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-metrics-processor-arn-${Environment}'

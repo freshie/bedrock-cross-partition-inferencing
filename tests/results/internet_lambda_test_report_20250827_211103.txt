@@ -1,0 +1,33 @@
+Internet Lambda Function - Unit Test Report
+Generated: Wed Aug 27 21:11:03 EDT 2025
+Project: Dual Routing API Gateway
+Component: Internet Lambda Function
+
+Test Environment:
+- Python Version: Python 3.9.6
+- Test Directory: /Users/treplogl/Documents/cross-partition-inferencing/tests
+- Lambda Directory: /Users/treplogl/Documents/cross-partition-inferencing/lambda
+- AWS Region: us-gov-west-1
+
+Test Results:
+- Status: FAILED ✗
+
+Files Tested:
+- dual_routing_internet_lambda.py
+- dual_routing_error_handler.py (imported)
+
+Test Categories:
+- Basic functionality tests
+- Routing method detection
+- Request parsing and validation
+- Commercial credentials handling
+- Bedrock forwarding (API key and AWS credentials)
+- Error handling and recovery
+- Logging and metrics
+- GET request handling (models and routing info)
+- Advanced features (inference profiles, base64 decoding)
+
+Coverage Analysis:
+- Coverage data not available
+
+Additional Files Generated:

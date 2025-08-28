@@ -1,0 +1,22 @@
+VPC Endpoints Deployment Report
+Generated: Wed Aug 27 21:40:09 EDT 2025
+Project: dual-routing-api-gateway
+Environment: prod
+
+Deployment Configuration:
+- VPC ID: vpc-0a82778bbc7b700ef
+- Subnet IDs: subnet-0b8b0ec54e2531cea,subnet-06cee54a3206aa8bd
+- Security Group ID: sg-0959a4d69ef704c36
+- AWS Region: us-gov-west-1
+
+VPC Endpoints Created:
+- Bedrock Runtime (Interface)
+- Secrets Manager (Interface)
+- CloudWatch Logs (Interface)
+- CloudWatch Monitoring (Interface)
+- DynamoDB (Gateway)
+
+Next Steps:
+1. Test VPC endpoint connectivity from Lambda functions
+2. Deploy VPN Lambda function
+3. Run end-to-end connectivity tests

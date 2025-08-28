@@ -1,0 +1,50 @@
+Complete VPN Infrastructure Deployment Summary
+Generated: Wed Aug 27 21:40:34 EDT 2025
+Project: dual-routing-api-gateway
+Environment: prod
+
+Deployment Configuration:
+- AWS Region: us-gov-west-1
+- VPC CIDR: 10.0.0.0/16
+- Project Name: dual-routing-api-gateway
+- Environment: prod
+
+Infrastructure Deployed:
+- VPC with public and private subnets
+- Internet Gateway and NAT Gateways
+- VPN Gateway and Customer Gateway
+- VPN Connection to Commercial AWS
+- Security Groups for Lambda and VPC endpoints
+- VPC Endpoints for AWS services:
+  * Bedrock Runtime (Interface)
+  * Secrets Manager (Interface)
+  * CloudWatch Logs (Interface)
+  * CloudWatch Monitoring (Interface)
+  * DynamoDB (Gateway)
+
+Infrastructure Details:
+- VPC ID: vpc-0a82778bbc7b700ef
+- Private Subnet 1: subnet-0b8b0ec54e2531cea
+- Private Subnet 2: subnet-06cee54a3206aa8bd
+- Lambda Security Group: sg-0959a4d69ef704c36
+- VPN Connection ID: vpn-031cfaeb996f62462
+
+CloudFormation Stack:
+- Stack Name: dual-routing-api-gateway-prod-vpn-infrastructure
+- Region: us-gov-west-1
+
+Next Steps:
+1. Verify VPN connection establishment with Commercial AWS
+2. Test VPC endpoint connectivity
+3. Deploy VPN Lambda function using deploy-vpn-lambda.sh
+4. Run end-to-end connectivity tests
+5. Configure monitoring and alerting
+
+Validation Status:
+- Connectivity validation: COMPLETED
+
+Important Notes:
+- VPN tunnels may take several minutes to establish
+- Monitor VPN connection status in AWS Console
+- Ensure Commercial AWS side is properly configured
+- Test Lambda deployment before production use

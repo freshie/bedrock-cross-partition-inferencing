@@ -1,0 +1,26 @@
+VPN Connectivity Validation Report
+Generated: Wed Aug 27 21:40:23 EDT 2025
+Project: dual-routing-api-gateway
+Environment: prod
+
+Validation Configuration:
+- AWS Region: us-gov-west-1
+- VPC ID: vpc-0a82778bbc7b700ef
+- VPN Connection ID: vpn-031cfaeb996f62462
+
+Validation Results:
+- VPC Configuration: PASS
+- VPN Connection: PASS
+- VPC Endpoints: PASS
+- Security Groups: PASS
+
+Recommendations:
+1. Ensure VPN tunnels are established and UP
+2. Verify all required VPC endpoints are available
+3. Test Lambda function deployment in VPC
+4. Run end-to-end connectivity tests
+
+Next Steps:
+1. Deploy VPN Lambda function if validation passes
+2. Run comprehensive connectivity tests
+3. Monitor VPN connection stability

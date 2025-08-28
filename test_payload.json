@@ -1,0 +1,8 @@
+{
+  "body": "{\"model_id\":\"anthropic.claude-3-sonnet-20240229-v1:0\",\"prompt\":\"Hello, this is a test of the cross-partition inference system.\",\"max_tokens\":100}",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "httpMethod": "POST",
+  "path": "/v1/bedrock/invoke-model"
+}

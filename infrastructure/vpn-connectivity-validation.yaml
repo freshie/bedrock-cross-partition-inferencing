@@ -1,0 +1,474 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'VPN connectivity validation Lambda function for testing tunnel connectivity and route validation'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'prod'
+    Description: 'Environment name for resource tagging'
+  
+  ProjectName:
+    Type: String
+    Default: 'cross-partition-vpn'
+    Description: 'Project name for resource naming'
+
+  VPCStackName:
+    Type: String
+    Description: 'Name of the VPC stack to import resources from'
+
+  VPNGatewayStackName:
+    Type: String
+    Description: 'Name of the VPN Gateway stack to import resources from'
+
+Resources:
+  # IAM Role for VPN validation Lambda
+  VPNValidationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: VPNValidationPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeVpnConnections
+                  - ec2:DescribeVpnGateways
+                  - ec2:DescribeCustomerGateways
+                  - ec2:DescribeRouteTables
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeInstances
+                  - ec2:CreateNetworkInterface
+                  - ec2:DeleteNetworkInterface
+                  - ec2:AttachNetworkInterface
+                  - ec2:DetachNetworkInterface
+                  - cloudwatch:PutMetricData
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+
+  # Lambda function for VPN connectivity validation
+  VPNValidationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-vpn-validation'
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt VPNValidationRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue: !Sub '${VPCStackName}-LambdaSecurityGroupId'
+        SubnetIds:
+          - Fn::ImportValue: !Sub '${VPCStackName}-PrivateSubnetId'
+      Environment:
+        Variables:
+          VPN_CONNECTION_ID:
+            Fn::ImportValue: !Sub '${VPNGatewayStackName}-VPNConnectionId'
+          VPN_GATEWAY_ID:
+            Fn::ImportValue: !Sub '${VPNGatewayStackName}-VPNGatewayId'
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import socket
+          import subprocess
+          import time
+          from datetime import datetime
+          
+          def lambda_handler(event, context):
+              ec2 = boto3.client('ec2')
+              cloudwatch = boto3.client('cloudwatch')
+              
+              vpn_connection_id = os.environ['VPN_CONNECTION_ID']
+              vpn_gateway_id = os.environ['VPN_GATEWAY_ID']
+              project_name = os.environ['PROJECT_NAME']
+              environment = os.environ['ENVIRONMENT']
+              
+              validation_results = {
+                  'timestamp': datetime.utcnow().isoformat(),
+                  'vpn_connection_id': vpn_connection_id,
+                  'tests': {}
+              }
+              
+              try:
+                  # Test 1: VPN Connection Status
+                  print("Testing VPN connection status...")
+                  vpn_status = test_vpn_connection_status(ec2, vpn_connection_id)
+                  validation_results['tests']['vpn_connection_status'] = vpn_status
+                  
+                  # Test 2: Tunnel Status
+                  print("Testing VPN tunnel status...")
+                  tunnel_status = test_tunnel_status(ec2, vpn_connection_id)
+                  validation_results['tests']['tunnel_status'] = tunnel_status
+                  
+                  # Test 3: Route Validation
+                  print("Testing route validation...")
+                  route_status = test_route_validation(ec2, vpn_gateway_id)
+                  validation_results['tests']['route_validation'] = route_status
+                  
+                  # Test 4: Cross-partition connectivity test
+                  print("Testing cross-partition connectivity...")
+                  connectivity_status = test_cross_partition_connectivity()
+                  validation_results['tests']['cross_partition_connectivity'] = connectivity_status
+                  
+                  # Send metrics to CloudWatch
+                  send_validation_metrics(cloudwatch, validation_results, project_name)
+                  
+                  # Determine overall health
+                  overall_health = determine_overall_health(validation_results['tests'])
+                  validation_results['overall_health'] = overall_health
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps(validation_results, indent=2)
+                  }
+                  
+              except Exception as e:
+                  print(f"Error during VPN validation: {str(e)}")
+                  validation_results['error'] = str(e)
+                  return {
+                      'statusCode': 500,
+                      'body': json.dumps(validation_results, indent=2)
+                  }
+          
+          def test_vpn_connection_status(ec2, vpn_connection_id):
+              """Test VPN connection overall status"""
+              try:
+                  response = ec2.describe_vpn_connections(
+                      VpnConnectionIds=[vpn_connection_id]
+                  )
+                  
+                  vpn_connection = response['VpnConnections'][0]
+                  state = vpn_connection['State']
+                  
+                  return {
+                      'status': 'PASS' if state == 'available' else 'FAIL',
+                      'state': state,
+                      'message': f'VPN connection state: {state}'
+                  }
+              except Exception as e:
+                  return {
+                      'status': 'ERROR',
+                      'message': f'Failed to get VPN connection status: {str(e)}'
+                  }
+          
+          def test_tunnel_status(ec2, vpn_connection_id):
+              """Test individual tunnel status"""
+              try:
+                  response = ec2.describe_vpn_connections(
+                      VpnConnectionIds=[vpn_connection_id]
+                  )
+                  
+                  vpn_connection = response['VpnConnections'][0]
+                  vgw_telemetry = vpn_connection.get('VgwTelemetry', [])
+                  
+                  tunnel_results = []
+                  up_tunnels = 0
+                  
+                  for i, tunnel in enumerate(vgw_telemetry, 1):
+                      tunnel_state = tunnel.get('Status', 'DOWN')
+                      outside_ip = tunnel.get('OutsideIpAddress', 'Unknown')
+                      accepted_routes = tunnel.get('AcceptedRouteCount', 0)
+                      
+                      if tunnel_state == 'UP':
+                          up_tunnels += 1
+                      
+                      tunnel_results.append({
+                          'tunnel_number': i,
+                          'status': tunnel_state,
+                          'outside_ip': outside_ip,
+                          'accepted_routes': accepted_routes,
+                          'last_status_change': tunnel.get('LastStatusChange', 'Unknown')
+                      })
+                  
+                  overall_status = 'PASS' if up_tunnels > 0 else 'FAIL'
+                  if up_tunnels == 1:
+                      overall_status = 'WARNING'  # Only one tunnel up
+                  
+                  return {
+                      'status': overall_status,
+                      'up_tunnels': up_tunnels,
+                      'total_tunnels': len(vgw_telemetry),
+                      'tunnels': tunnel_results,
+                      'message': f'{up_tunnels}/{len(vgw_telemetry)} tunnels are UP'
+                  }
+              except Exception as e:
+                  return {
+                      'status': 'ERROR',
+                      'message': f'Failed to get tunnel status: {str(e)}'
+                  }
+          
+          def test_route_validation(ec2, vpn_gateway_id):
+              """Test route table configuration"""
+              try:
+                  # Get route tables associated with VPN gateway
+                  response = ec2.describe_route_tables(
+                      Filters=[
+                          {
+                              'Name': 'route.gateway-id',
+                              'Values': [vpn_gateway_id]
+                          }
+                      ]
+                  )
+                  
+                  route_tables = response['RouteTables']
+                  route_results = []
+                  
+                  for rt in route_tables:
+                      rt_id = rt['RouteTableId']
+                      vpn_routes = []
+                      
+                      for route in rt['Routes']:
+                          if route.get('GatewayId') == vpn_gateway_id:
+                              vpn_routes.append({
+                                  'destination': route.get('DestinationCidrBlock', 'Unknown'),
+                                  'state': route.get('State', 'Unknown'),
+                                  'origin': route.get('Origin', 'Unknown')
+                              })
+                      
+                      route_results.append({
+                          'route_table_id': rt_id,
+                          'vpn_routes': vpn_routes
+                      })
+                  
+                  total_routes = sum(len(rt['vpn_routes']) for rt in route_results)
+                  status = 'PASS' if total_routes > 0 else 'FAIL'
+                  
+                  return {
+                      'status': status,
+                      'route_tables': route_results,
+                      'total_vpn_routes': total_routes,
+                      'message': f'Found {total_routes} VPN routes across {len(route_tables)} route tables'
+                  }
+              except Exception as e:
+                  return {
+                      'status': 'ERROR',
+                      'message': f'Failed to validate routes: {str(e)}'
+                  }
+          
+          def test_cross_partition_connectivity():
+              """Test cross-partition connectivity using socket connection"""
+              try:
+                  # Test connectivity to common cross-partition destinations
+                  test_destinations = [
+                      ('172.16.1.1', 443),  # Commercial VPC
+                      ('10.0.1.1', 443),    # GovCloud VPC
+                  ]
+                  
+                  connectivity_results = []
+                  successful_connections = 0
+                  
+                  for host, port in test_destinations:
+                      try:
+                          # Set a short timeout for the connection test
+                          sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                          sock.settimeout(5)
+                          result = sock.connect_ex((host, port))
+                          sock.close()
+                          
+                          if result == 0:
+                              status = 'CONNECTED'
+                              successful_connections += 1
+                          else:
+                              status = 'FAILED'
+                          
+                          connectivity_results.append({
+                              'destination': f'{host}:{port}',
+                              'status': status,
+                              'result_code': result
+                          })
+                      except Exception as e:
+                          connectivity_results.append({
+                              'destination': f'{host}:{port}',
+                              'status': 'ERROR',
+                              'error': str(e)
+                          })
+                  
+                  overall_status = 'PASS' if successful_connections > 0 else 'FAIL'
+                  
+                  return {
+                      'status': overall_status,
+                      'successful_connections': successful_connections,
+                      'total_tests': len(test_destinations),
+                      'connections': connectivity_results,
+                      'message': f'{successful_connections}/{len(test_destinations)} connectivity tests passed'
+                  }
+              except Exception as e:
+                  return {
+                      'status': 'ERROR',
+                      'message': f'Failed to test cross-partition connectivity: {str(e)}'
+                  }
+          
+          def send_validation_metrics(cloudwatch, validation_results, project_name):
+              """Send validation metrics to CloudWatch"""
+              try:
+                  metrics = []
+                  
+                  # Overall health metric
+                  overall_health = validation_results.get('overall_health', {})
+                  health_value = 1 if overall_health.get('status') == 'HEALTHY' else 0
+                  
+                  metrics.append({
+                      'MetricName': 'VPNValidationHealth',
+                      'Value': health_value,
+                      'Unit': 'None',
+                      'Dimensions': [
+                          {'Name': 'Project', 'Value': project_name}
+                      ]
+                  })
+                  
+                  # Individual test metrics
+                  for test_name, test_result in validation_results['tests'].items():
+                      test_value = 1 if test_result.get('status') == 'PASS' else 0
+                      
+                      metrics.append({
+                          'MetricName': f'VPNValidation_{test_name}',
+                          'Value': test_value,
+                          'Unit': 'None',
+                          'Dimensions': [
+                              {'Name': 'Project', 'Value': project_name},
+                              {'Name': 'TestType', 'Value': test_name}
+                          ]
+                      })
+                  
+                  # Send metrics in batches
+                  for i in range(0, len(metrics), 20):
+                      batch = metrics[i:i+20]
+                      cloudwatch.put_metric_data(
+                          Namespace=f'VPN/{project_name}/Validation',
+                          MetricData=[{
+                              'MetricName': metric['MetricName'],
+                              'Value': metric['Value'],
+                              'Unit': metric['Unit'],
+                              'Dimensions': metric['Dimensions'],
+                              'Timestamp': datetime.utcnow()
+                          } for metric in batch]
+                      )
+                  
+              except Exception as e:
+                  print(f"Failed to send validation metrics: {str(e)}")
+          
+          def determine_overall_health(test_results):
+              """Determine overall VPN health based on test results"""
+              critical_tests = ['vpn_connection_status', 'tunnel_status']
+              warning_tests = ['route_validation', 'cross_partition_connectivity']
+              
+              critical_failures = 0
+              warning_failures = 0
+              
+              for test_name, result in test_results.items():
+                  status = result.get('status', 'UNKNOWN')
+                  
+                  if test_name in critical_tests and status in ['FAIL', 'ERROR']:
+                      critical_failures += 1
+                  elif test_name in warning_tests and status in ['FAIL', 'ERROR']:
+                      warning_failures += 1
+                  elif test_name in critical_tests and status == 'WARNING':
+                      warning_failures += 1
+              
+              if critical_failures > 0:
+                  return {
+                      'status': 'UNHEALTHY',
+                      'message': f'{critical_failures} critical test(s) failed',
+                      'critical_failures': critical_failures,
+                      'warning_failures': warning_failures
+                  }
+              elif warning_failures > 0:
+                  return {
+                      'status': 'DEGRADED',
+                      'message': f'{warning_failures} warning test(s) failed',
+                      'critical_failures': critical_failures,
+                      'warning_failures': warning_failures
+                  }
+              else:
+                  return {
+                      'status': 'HEALTHY',
+                      'message': 'All VPN validation tests passed',
+                      'critical_failures': critical_failures,
+                      'warning_failures': warning_failures
+                  }
+
+  # EventBridge rule to trigger VPN validation every 15 minutes
+  VPNValidationSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: 'Trigger VPN validation every 15 minutes'
+      ScheduleExpression: 'rate(15 minutes)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt VPNValidationFunction.Arn
+          Id: 'VPNValidationTarget'
+
+  # Permission for EventBridge to invoke Lambda
+  VPNValidationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref VPNValidationFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt VPNValidationSchedule.Arn
+
+  # CloudWatch Alarms for VPN validation
+  VPNValidationHealthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-vpn-validation-health'
+      AlarmDescription: 'VPN validation health check alarm'
+      MetricName: 'VPNValidationHealth'
+      Namespace: !Sub 'VPN/${ProjectName}/Validation'
+      Statistic: Average
+      Period: 900  # 15 minutes
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      Dimensions:
+        - Name: Project
+          Value: !Ref ProjectName
+
+  # SNS Topic for VPN alerts (optional - can be configured later)
+  VPNAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-vpn-alerts'
+      DisplayName: 'VPN Connectivity Alerts'
+
+Outputs:
+  VPNValidationFunctionArn:
+    Description: 'ARN of VPN validation Lambda function'
+    Value: !GetAtt VPNValidationFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-VPNValidationFunctionArn'
+
+  VPNValidationFunctionName:
+    Description: 'Name of VPN validation Lambda function'
+    Value: !Ref VPNValidationFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-VPNValidationFunctionName'
+
+  VPNAlertsTopicArn:
+    Description: 'ARN of VPN alerts SNS topic'
+    Value: !Ref VPNAlertsTopic
+    Export:
+      Name: !Sub '${AWS::StackName}-VPNAlertsTopicArn'
+
+  VPNValidationHealthAlarmArn:
+    Description: 'ARN of VPN validation health alarm'
+    Value: !GetAtt VPNValidationHealthAlarm.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-VPNValidationHealthAlarmArn'

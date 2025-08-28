@@ -1,0 +1,74 @@
+[
+    {
+        "OutputKey": "SecretsManagerVPCEndpointId",
+        "OutputValue": "vpce-0f565e403a87c34cf",
+        "Description": "Secrets Manager VPC Endpoint ID",
+        "ExportName": "dual-routing-api-gateway-prod-secrets-vpce-id"
+    },
+    {
+        "OutputKey": "VPNConnectionId",
+        "OutputValue": "vpn-031cfaeb996f62462",
+        "Description": "VPN Connection ID",
+        "ExportName": "dual-routing-api-gateway-prod-vpn-connection-id"
+    },
+    {
+        "OutputKey": "VPNGatewayId",
+        "OutputValue": "vgw-0ff3d67133a602ce9",
+        "Description": "VPN Gateway ID",
+        "ExportName": "dual-routing-api-gateway-prod-vpn-gateway-id"
+    },
+    {
+        "OutputKey": "CloudWatchLogsVPCEndpointId",
+        "OutputValue": "vpce-08b3b61644ed88562",
+        "Description": "CloudWatch Logs VPC Endpoint ID",
+        "ExportName": "dual-routing-api-gateway-prod-logs-vpce-id"
+    },
+    {
+        "OutputKey": "CustomerGatewayId",
+        "OutputValue": "cgw-027869864badb0474",
+        "Description": "Customer Gateway ID",
+        "ExportName": "dual-routing-api-gateway-prod-customer-gateway-id"
+    },
+    {
+        "OutputKey": "VPCId",
+        "OutputValue": "vpc-0a82778bbc7b700ef",
+        "Description": "VPC ID for VPN Lambda functions",
+        "ExportName": "dual-routing-api-gateway-prod-vpc-id"
+    },
+    {
+        "OutputKey": "BedrockVPCEndpointId",
+        "OutputValue": "vpce-06c11fda9465bc055",
+        "Description": "Bedrock VPC Endpoint ID",
+        "ExportName": "dual-routing-api-gateway-prod-bedrock-vpce-id"
+    },
+    {
+        "OutputKey": "PrivateSubnet2Id",
+        "OutputValue": "subnet-06cee54a3206aa8bd",
+        "Description": "Private Subnet 2 ID",
+        "ExportName": "dual-routing-api-gateway-prod-private-subnet-2-id"
+    },
+    {
+        "OutputKey": "CloudWatchVPCEndpointId",
+        "OutputValue": "vpce-0b648e6f3a64cc06e",
+        "Description": "CloudWatch VPC Endpoint ID",
+        "ExportName": "dual-routing-api-gateway-prod-cloudwatch-vpce-id"
+    },
+    {
+        "OutputKey": "PrivateSubnet1Id",
+        "OutputValue": "subnet-0b8b0ec54e2531cea",
+        "Description": "Private Subnet 1 ID",
+        "ExportName": "dual-routing-api-gateway-prod-private-subnet-1-id"
+    },
+    {
+        "OutputKey": "VPNLambdaSecurityGroupId",
+        "OutputValue": "sg-0959a4d69ef704c36",
+        "Description": "Security Group ID for VPN Lambda functions",
+        "ExportName": "dual-routing-api-gateway-prod-vpn-lambda-sg-id"
+    },
+    {
+        "OutputKey": "DynamoDBVPCEndpointId",
+        "OutputValue": "vpce-0608bf51447759eec",
+        "Description": "DynamoDB VPC Endpoint ID",
+        "ExportName": "dual-routing-api-gateway-prod-dynamodb-vpce-id"
+    }
+]

@@ -1,0 +1,25 @@
+VPN Tunnel Connectivity Test Report
+Generated: Wed Aug 27 22:33:50 EDT 2025
+Project: dual-routing-api-gateway
+Environment: prod
+
+Test Results Summary:
+====================
+❌ VPN Tunnel Status: FAIL
+✅ Lambda Connectivity: PASS
+✅ Network Connectivity: PASS
+
+Recommendations:
+===============
+1. Ensure VPN tunnels are UP in both GovCloud and Commercial AWS
+2. Verify route table configurations in both partitions
+3. Check security group rules for Lambda and VPN traffic
+4. Validate bearer token configuration in Secrets Manager
+5. Test end-to-end connectivity with actual Bedrock API calls
+
+Next Steps:
+===========
+- If tunnels are DOWN: Deploy Commercial AWS infrastructure
+- If connectivity fails: Check routing and security groups
+- If authentication fails: Update bearer token in Secrets Manager
+- If successful: Proceed with API Gateway deployment

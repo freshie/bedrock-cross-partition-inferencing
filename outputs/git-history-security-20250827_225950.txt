@@ -1,0 +1,32 @@
+Git History Security Scan Report
+Generated: Wed Aug 27 22:59:50 EDT 2025
+Repository: https://github.com/freshie/bedrock-cross-partition-inferencing.git
+Branch: feature/vpn-connectivity-options
+
+Summary:
+========
+Total Security Issues Found in History: 39
+
+Scan Coverage:
+- AWS Access Keys (AKIA*)
+- AWS Secret Keys (40+ char base64)
+- API Gateway URLs (execute-api)
+- Bedrock API Keys
+- Hardcoded passwords, secrets, tokens
+
+Repository Stats:
+- Total commits: 56
+- Contributors:        1
+- First commit: 23dbf8c feat: Complete cross-partition AI inference MVP implementation
+- Latest commit: 157397a Update dual routing system to use bearer token authentication
+
+❌ GIT HISTORY SECURITY SCAN FAILED - 39 issues found
+
+CRITICAL: Sensitive data found in git history!
+This data will remain accessible even after cleaning current files.
+
+Recommended actions:
+1. Use git filter-branch or BFG Repo-Cleaner to remove sensitive data
+2. Force push to rewrite history (coordinate with team)
+3. Rotate any exposed credentials immediately
+4. Consider creating a new repository if history cannot be cleaned

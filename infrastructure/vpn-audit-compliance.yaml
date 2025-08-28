@@ -1,0 +1,872 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Audit logging and compliance tracking for VPN connectivity solution'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'prod'
+    Description: 'Environment name for resource tagging'
+  
+  ProjectName:
+    Type: String
+    Default: 'cross-partition-vpn'
+    Description: 'Project name for resource naming'
+
+  ComplianceFramework:
+    Type: String
+    Default: 'FedRAMP'
+    AllowedValues: ['FedRAMP', 'NIST', 'SOC2', 'FISMA']
+    Description: 'Compliance framework to track'
+
+  AuditRetentionDays:
+    Type: Number
+    Default: 2555  # 7 years
+    Description: 'Number of days to retain audit logs'
+
+Resources:
+  # DynamoDB table for cross-partition request audit trail
+  CrossPartitionAuditTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${ProjectName}-cross-partition-audit'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: requestId
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+        - AttributeName: userArn
+          AttributeType: S
+        - AttributeName: sourcePartition
+          AttributeType: S
+      KeySchema:
+        - AttributeName: requestId
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: UserArnIndex
+          KeySchema:
+            - AttributeName: userArn
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: SourcePartitionIndex
+          KeySchema:
+            - AttributeName: sourcePartition
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+        KMSMasterKeyId: !Ref AuditTableKMSKey
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-cross-partition-audit'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: DataClassification
+          Value: 'sensitive'
+        - Key: ComplianceFramework
+          Value: !Ref ComplianceFramework
+
+  # KMS Key for audit table encryption
+  AuditTableKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: 'KMS key for cross-partition audit table encryption'
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow DynamoDB Service
+            Effect: Allow
+            Principal:
+              Service: dynamodb.amazonaws.com
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: '*'
+          - Sid: Allow Lambda Functions
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt AuditProcessorRole.Arn
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: '*'
+
+  # KMS Key Alias for audit table
+  AuditTableKMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/${ProjectName}-audit-table'
+      TargetKeyId: !Ref AuditTableKMSKey
+
+  # S3 bucket for long-term audit log storage
+  AuditLogsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-audit-logs-${AWS::AccountId}-${AWS::Region}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !Ref AuditLogsBucketKMSKey
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: AuditLogsRetention
+            Status: Enabled
+            ExpirationInDays: !Ref AuditRetentionDays
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+              - TransitionInDays: 90
+                StorageClass: GLACIER
+              - TransitionInDays: 365
+                StorageClass: DEEP_ARCHIVE
+            NoncurrentVersionTransitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+              - TransitionInDays: 90
+                StorageClass: GLACIER
+            NoncurrentVersionExpirationInDays: !Ref AuditRetentionDays
+      LoggingConfiguration:
+        DestinationBucketName: !Ref AccessLogsBucket
+        LogFilePrefix: 'audit-bucket-access/'
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt ComplianceReportingFunction.Arn
+
+  # S3 bucket for access logs
+  AccessLogsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-access-logs-${AWS::AccountId}-${AWS::Region}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: AccessLogsRetention
+            Status: Enabled
+            ExpirationInDays: 90
+
+  # KMS Key for audit logs bucket
+  AuditLogsBucketKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: 'KMS key for audit logs S3 bucket encryption'
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow S3 Service
+            Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: '*'
+
+  # CloudTrail for API call tracking
+  VPNCloudTrail:
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      TrailName: !Sub '${ProjectName}-cloudtrail'
+      S3BucketName: !Ref CloudTrailBucket
+      S3KeyPrefix: 'cloudtrail-logs/'
+      IncludeGlobalServiceEvents: true
+      IsMultiRegionTrail: true
+      EnableLogFileValidation: true
+      KMSKeyId: !Ref CloudTrailKMSKey
+      EventSelectors:
+        - ReadWriteType: All
+          IncludeManagementEvents: true
+          DataResources:
+            - Type: 'AWS::S3::Object'
+              Values: 
+                - !Sub '${AuditLogsBucket}/*'
+            - Type: 'AWS::DynamoDB::Table'
+              Values:
+                - !GetAtt CrossPartitionAuditTable.Arn
+            - Type: 'AWS::Lambda::Function'
+              Values:
+                - '*'
+      InsightSelectors:
+        - InsightType: ApiCallRateInsight
+
+  # S3 bucket for CloudTrail logs
+  CloudTrailBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-cloudtrail-${AWS::AccountId}-${AWS::Region}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !Ref CloudTrailKMSKey
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: CloudTrailRetention
+            Status: Enabled
+            ExpirationInDays: !Ref AuditRetentionDays
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+              - TransitionInDays: 90
+                StorageClass: GLACIER
+
+  # CloudTrail bucket policy
+  CloudTrailBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref CloudTrailBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AWSCloudTrailAclCheck
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource: !GetAtt CloudTrailBucket.Arn
+          - Sid: AWSCloudTrailWrite
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub '${CloudTrailBucket}/cloudtrail-logs/*'
+            Condition:
+              StringEquals:
+                's3:x-amz-acl': bucket-owner-full-control
+
+  # KMS Key for CloudTrail
+  CloudTrailKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: 'KMS key for CloudTrail encryption'
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow CloudTrail
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: '*'
+
+  # Lambda function for audit log processing
+  AuditProcessorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-audit-processor'
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt AuditProcessorRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          AUDIT_TABLE_NAME: !Ref CrossPartitionAuditTable
+          AUDIT_BUCKET_NAME: !Ref AuditLogsBucket
+          COMPLIANCE_FRAMEWORK: !Ref ComplianceFramework
+          PROJECT_NAME: !Ref ProjectName
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import gzip
+          import base64
+          from datetime import datetime, timedelta
+          from decimal import Decimal
+          
+          def lambda_handler(event, context):
+              """Process DynamoDB stream events for audit logging"""
+              
+              dynamodb = boto3.resource('dynamodb')
+              s3 = boto3.client('s3')
+              
+              audit_table_name = os.environ['AUDIT_TABLE_NAME']
+              audit_bucket_name = os.environ['AUDIT_BUCKET_NAME']
+              compliance_framework = os.environ['COMPLIANCE_FRAMEWORK']
+              project_name = os.environ['PROJECT_NAME']
+              
+              processed_records = 0
+              
+              try:
+                  for record in event['Records']:
+                      if record['eventName'] in ['INSERT', 'MODIFY']:
+                          # Process audit record
+                          audit_record = process_audit_record(record, compliance_framework)
+                          
+                          # Store in S3 for long-term retention
+                          store_audit_record_s3(s3, audit_bucket_name, audit_record)
+                          
+                          processed_records += 1
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps({
+                          'processed_records': processed_records,
+                          'timestamp': datetime.utcnow().isoformat()
+                      })
+                  }
+              
+              except Exception as e:
+                  print(f"Error processing audit records: {str(e)}")
+                  return {
+                      'statusCode': 500,
+                      'body': json.dumps({'error': str(e)})
+                  }
+          
+          def process_audit_record(record, compliance_framework):
+              """Process individual audit record"""
+              
+              try:
+                  # Extract record data
+                  if record['eventName'] == 'INSERT':
+                      audit_data = record['dynamodb']['NewImage']
+                  else:  # MODIFY
+                      audit_data = record['dynamodb']['NewImage']
+                  
+                  # Convert DynamoDB format to standard format
+                  processed_record = {}
+                  for key, value in audit_data.items():
+                      if 'S' in value:
+                          processed_record[key] = value['S']
+                      elif 'N' in value:
+                          processed_record[key] = float(value['N'])
+                      elif 'BOOL' in value:
+                          processed_record[key] = value['BOOL']
+                  
+                  # Add compliance metadata
+                  processed_record['compliance_framework'] = compliance_framework
+                  processed_record['audit_processed_timestamp'] = datetime.utcnow().isoformat()
+                  processed_record['record_type'] = 'cross_partition_request'
+                  
+                  # Add compliance-specific fields
+                  if compliance_framework == 'FedRAMP':
+                      processed_record['fedramp_control_family'] = determine_fedramp_controls(processed_record)
+                  elif compliance_framework == 'NIST':
+                      processed_record['nist_controls'] = determine_nist_controls(processed_record)
+                  
+                  return processed_record
+              
+              except Exception as e:
+                  print(f"Error processing audit record: {str(e)}")
+                  return None
+          
+          def determine_fedramp_controls(record):
+              """Determine applicable FedRAMP controls"""
+              controls = []
+              
+              # AC-3: Access Enforcement
+              if 'userArn' in record:
+                  controls.append('AC-3')
+              
+              # AU-2: Audit Events
+              controls.append('AU-2')
+              
+              # AU-3: Content of Audit Records
+              controls.append('AU-3')
+              
+              # SC-8: Transmission Confidentiality and Integrity
+              if record.get('routingMethod') == 'vpn':
+                  controls.append('SC-8')
+              
+              # SC-7: Boundary Protection
+              if record.get('vpcEndpointsUsed'):
+                  controls.append('SC-7')
+              
+              return controls
+          
+          def determine_nist_controls(record):
+              """Determine applicable NIST controls"""
+              controls = []
+              
+              # Access Control
+              controls.append('AC.AC-3')
+              
+              # Audit and Accountability
+              controls.append('AU.AU-2')
+              controls.append('AU.AU-3')
+              
+              # System and Communications Protection
+              if record.get('routingMethod') == 'vpn':
+                  controls.append('SC.SC-8')
+                  controls.append('SC.SC-7')
+              
+              return controls
+          
+          def store_audit_record_s3(s3, bucket_name, record):
+              """Store audit record in S3 for long-term retention"""
+              
+              if not record:
+                  return
+              
+              try:
+                  # Create S3 key with date partitioning
+                  timestamp = datetime.utcnow()
+                  s3_key = f"audit-records/year={timestamp.year}/month={timestamp.month:02d}/day={timestamp.day:02d}/hour={timestamp.hour:02d}/{record.get('requestId', 'unknown')}.json"
+                  
+                  # Compress and store
+                  compressed_data = gzip.compress(json.dumps(record, default=str).encode('utf-8'))
+                  
+                  s3.put_object(
+                      Bucket=bucket_name,
+                      Key=s3_key,
+                      Body=compressed_data,
+                      ContentType='application/json',
+                      ContentEncoding='gzip',
+                      ServerSideEncryption='aws:kms',
+                      Metadata={
+                          'compliance-framework': record.get('compliance_framework', 'unknown'),
+                          'record-type': record.get('record_type', 'unknown'),
+                          'source-partition': record.get('sourcePartition', 'unknown')
+                      }
+                  )
+                  
+                  print(f"Stored audit record in S3: {s3_key}")
+              
+              except Exception as e:
+                  print(f"Error storing audit record in S3: {str(e)}")
+
+  # IAM Role for audit processor Lambda
+  AuditProcessorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AuditProcessorPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:DescribeStream
+                  - dynamodb:GetRecords
+                  - dynamodb:GetShardIterator
+                  - dynamodb:ListStreams
+                Resource: !GetAtt CrossPartitionAuditTable.StreamArn
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                Resource: !Sub '${AuditLogsBucket}/*'
+              - Effect: Allow
+                Action:
+                  - kms:Encrypt
+                  - kms:Decrypt
+                  - kms:ReEncrypt*
+                  - kms:GenerateDataKey*
+                  - kms:DescribeKey
+                Resource: 
+                  - !GetAtt AuditTableKMSKey.Arn
+                  - !GetAtt AuditLogsBucketKMSKey.Arn
+
+  # Event source mapping for DynamoDB stream
+  AuditProcessorEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt CrossPartitionAuditTable.StreamArn
+      FunctionName: !GetAtt AuditProcessorFunction.Arn
+      StartingPosition: LATEST
+      BatchSize: 10
+      MaximumBatchingWindowInSeconds: 5
+
+  # Lambda function for compliance reporting
+  ComplianceReportingFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-compliance-reporting'
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt ComplianceReportingRole.Arn
+      Timeout: 900  # 15 minutes
+      MemorySize: 1024
+      Environment:
+        Variables:
+          AUDIT_TABLE_NAME: !Ref CrossPartitionAuditTable
+          AUDIT_BUCKET_NAME: !Ref AuditLogsBucket
+          COMPLIANCE_FRAMEWORK: !Ref ComplianceFramework
+          PROJECT_NAME: !Ref ProjectName
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          from datetime import datetime, timedelta
+          from collections import defaultdict
+          
+          def lambda_handler(event, context):
+              """Generate compliance reports"""
+              
+              dynamodb = boto3.resource('dynamodb')
+              s3 = boto3.client('s3')
+              
+              audit_table_name = os.environ['AUDIT_TABLE_NAME']
+              audit_bucket_name = os.environ['AUDIT_BUCKET_NAME']
+              compliance_framework = os.environ['COMPLIANCE_FRAMEWORK']
+              project_name = os.environ['PROJECT_NAME']
+              
+              try:
+                  # Generate daily compliance report
+                  report = generate_compliance_report(dynamodb, audit_table_name, compliance_framework)
+                  
+                  # Store report in S3
+                  store_compliance_report(s3, audit_bucket_name, report, compliance_framework)
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps({
+                          'report_generated': True,
+                          'timestamp': datetime.utcnow().isoformat(),
+                          'compliance_framework': compliance_framework
+                      })
+                  }
+              
+              except Exception as e:
+                  print(f"Error generating compliance report: {str(e)}")
+                  return {
+                      'statusCode': 500,
+                      'body': json.dumps({'error': str(e)})
+                  }
+          
+          def generate_compliance_report(dynamodb, table_name, framework):
+              """Generate compliance report based on audit data"""
+              
+              table = dynamodb.Table(table_name)
+              
+              # Query last 24 hours of data
+              end_time = datetime.utcnow()
+              start_time = end_time - timedelta(days=1)
+              
+              report = {
+                  'report_date': end_time.isoformat(),
+                  'compliance_framework': framework,
+                  'period': {
+                      'start': start_time.isoformat(),
+                      'end': end_time.isoformat()
+                  },
+                  'metrics': defaultdict(int),
+                  'violations': [],
+                  'summary': {}
+              }
+              
+              try:
+                  # Scan table for recent records (in production, use GSI with timestamp)
+                  response = table.scan(
+                      FilterExpression='#ts BETWEEN :start AND :end',
+                      ExpressionAttributeNames={'#ts': 'timestamp'},
+                      ExpressionAttributeValues={
+                          ':start': start_time.isoformat(),
+                          ':end': end_time.isoformat()
+                      }
+                  )
+                  
+                  items = response['Items']
+                  
+                  # Process items for compliance metrics
+                  for item in items:
+                      # Count requests by partition
+                      source_partition = item.get('sourcePartition', 'unknown')
+                      report['metrics'][f'requests_{source_partition}'] += 1
+                      
+                      # Count successful vs failed requests
+                      if item.get('success', False):
+                          report['metrics']['successful_requests'] += 1
+                      else:
+                          report['metrics']['failed_requests'] += 1
+                      
+                      # Check for compliance violations
+                      violations = check_compliance_violations(item, framework)
+                      report['violations'].extend(violations)
+                      
+                      # Count VPN usage
+                      if item.get('routingMethod') == 'vpn':
+                          report['metrics']['vpn_requests'] += 1
+                      
+                      # Count VPC endpoint usage
+                      if item.get('vpcEndpointsUsed'):
+                          report['metrics']['vpc_endpoint_requests'] += 1
+                  
+                  # Generate summary
+                  total_requests = report['metrics']['successful_requests'] + report['metrics']['failed_requests']
+                  report['summary'] = {
+                      'total_requests': total_requests,
+                      'success_rate': (report['metrics']['successful_requests'] / total_requests * 100) if total_requests > 0 else 0,
+                      'vpn_usage_rate': (report['metrics']['vpn_requests'] / total_requests * 100) if total_requests > 0 else 0,
+                      'vpc_endpoint_usage_rate': (report['metrics']['vpc_endpoint_requests'] / total_requests * 100) if total_requests > 0 else 0,
+                      'violation_count': len(report['violations']),
+                      'compliance_score': calculate_compliance_score(report, framework)
+                  }
+                  
+                  return report
+              
+              except Exception as e:
+                  print(f"Error generating compliance report: {str(e)}")
+                  return report
+          
+          def check_compliance_violations(item, framework):
+              """Check for compliance violations in audit record"""
+              violations = []
+              
+              # Check for missing required fields
+              required_fields = ['requestId', 'timestamp', 'userArn', 'sourcePartition']
+              for field in required_fields:
+                  if field not in item or not item[field]:
+                      violations.append({
+                          'type': 'missing_required_field',
+                          'field': field,
+                          'request_id': item.get('requestId', 'unknown'),
+                          'severity': 'high'
+                      })
+              
+              # Check for insecure routing
+              if item.get('routingMethod') != 'vpn':
+                  violations.append({
+                      'type': 'insecure_routing',
+                      'routing_method': item.get('routingMethod', 'unknown'),
+                      'request_id': item.get('requestId', 'unknown'),
+                      'severity': 'medium'
+                  })
+              
+              # Check for VPC endpoint bypass
+              if not item.get('vpcEndpointsUsed'):
+                  violations.append({
+                      'type': 'vpc_endpoint_bypass',
+                      'request_id': item.get('requestId', 'unknown'),
+                      'severity': 'medium'
+                  })
+              
+              return violations
+          
+          def calculate_compliance_score(report, framework):
+              """Calculate overall compliance score"""
+              
+              total_requests = report['summary']['total_requests']
+              if total_requests == 0:
+                  return 100
+              
+              # Base score
+              score = 100
+              
+              # Deduct points for violations
+              violation_penalty = len(report['violations']) * 5
+              score -= min(violation_penalty, 50)  # Max 50 point deduction
+              
+              # Deduct points for non-VPN usage
+              vpn_usage_rate = report['summary']['vpn_usage_rate']
+              if vpn_usage_rate < 100:
+                  score -= (100 - vpn_usage_rate) * 0.3
+              
+              # Deduct points for VPC endpoint bypass
+              vpc_endpoint_rate = report['summary']['vpc_endpoint_usage_rate']
+              if vpc_endpoint_rate < 100:
+                  score -= (100 - vpc_endpoint_rate) * 0.2
+              
+              return max(score, 0)
+          
+          def store_compliance_report(s3, bucket_name, report, framework):
+              """Store compliance report in S3"""
+              
+              try:
+                  timestamp = datetime.utcnow()
+                  s3_key = f"compliance-reports/{framework.lower()}/year={timestamp.year}/month={timestamp.month:02d}/day={timestamp.day:02d}/compliance-report-{timestamp.strftime('%Y%m%d-%H%M%S')}.json"
+                  
+                  s3.put_object(
+                      Bucket=bucket_name,
+                      Key=s3_key,
+                      Body=json.dumps(report, indent=2, default=str),
+                      ContentType='application/json',
+                      ServerSideEncryption='aws:kms',
+                      Metadata={
+                          'compliance-framework': framework,
+                          'report-type': 'daily-compliance',
+                          'report-date': timestamp.strftime('%Y-%m-%d')
+                      }
+                  )
+                  
+                  print(f"Stored compliance report in S3: {s3_key}")
+              
+              except Exception as e:
+                  print(f"Error storing compliance report: {str(e)}")
+
+  # IAM Role for compliance reporting Lambda
+  ComplianceReportingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ComplianceReportingPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                Resource: !GetAtt CrossPartitionAuditTable.Arn
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                Resource: !Sub '${AuditLogsBucket}/*'
+              - Effect: Allow
+                Action:
+                  - kms:Encrypt
+                  - kms:Decrypt
+                  - kms:ReEncrypt*
+                  - kms:GenerateDataKey*
+                  - kms:DescribeKey
+                Resource: 
+                  - !GetAtt AuditTableKMSKey.Arn
+                  - !GetAtt AuditLogsBucketKMSKey.Arn
+
+  # Permission for S3 to invoke compliance reporting Lambda
+  ComplianceReportingPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ComplianceReportingFunction
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !GetAtt AuditLogsBucket.Arn
+
+  # EventBridge rule for daily compliance reporting
+  DailyComplianceReportSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: 'Generate daily compliance report'
+      ScheduleExpression: 'cron(0 6 * * ? *)'  # 6 AM UTC daily
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt ComplianceReportingFunction.Arn
+          Id: 'DailyComplianceReportTarget'
+
+  # Permission for EventBridge to invoke compliance reporting Lambda
+  DailyComplianceReportPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ComplianceReportingFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DailyComplianceReportSchedule.Arn
+
+Outputs:
+  CrossPartitionAuditTableName:
+    Description: 'Cross-partition audit table name'
+    Value: !Ref CrossPartitionAuditTable
+    Export:
+      Name: !Sub '${AWS::StackName}-CrossPartitionAuditTableName'
+
+  CrossPartitionAuditTableArn:
+    Description: 'Cross-partition audit table ARN'
+    Value: !GetAtt CrossPartitionAuditTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-CrossPartitionAuditTableArn'
+
+  AuditLogsBucketName:
+    Description: 'Audit logs S3 bucket name'
+    Value: !Ref AuditLogsBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-AuditLogsBucketName'
+
+  CloudTrailArn:
+    Description: 'CloudTrail ARN'
+    Value: !GetAtt VPNCloudTrail.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudTrailArn'
+
+  AuditProcessorFunctionArn:
+    Description: 'Audit processor Lambda function ARN'
+    Value: !GetAtt AuditProcessorFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-AuditProcessorFunctionArn'
+
+  ComplianceReportingFunctionArn:
+    Description: 'Compliance reporting Lambda function ARN'
+    Value: !GetAtt ComplianceReportingFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ComplianceReportingFunctionArn'
+
+  AuditTableKMSKeyId:
+    Description: 'Audit table KMS key ID'
+    Value: !Ref AuditTableKMSKey
+    Export:
+      Name: !Sub '${AWS::StackName}-AuditTableKMSKeyId'

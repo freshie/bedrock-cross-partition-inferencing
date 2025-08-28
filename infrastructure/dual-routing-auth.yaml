@@ -1,0 +1,600 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Authentication and authorization infrastructure for dual routing API Gateway'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: 'cross-partition-dual-routing'
+    Description: 'Project name for resource naming'
+  
+  Environment:
+    Type: String
+    Default: 'prod'
+    AllowedValues: ['dev', 'staging', 'prod']
+    Description: 'Environment name for resource tagging'
+  
+  # API Gateway Configuration
+  ApiGatewayId:
+    Type: String
+    Description: 'API Gateway ID to configure authentication for'
+  
+  # Authentication Method
+  AuthenticationMethod:
+    Type: String
+    Default: 'API_KEY'
+    AllowedValues: ['API_KEY', 'IAM', 'COGNITO', 'LAMBDA_AUTHORIZER']
+    Description: 'Primary authentication method'
+  
+  # API Key Configuration
+  CreateApiKeys:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: 'Whether to create API keys'
+  
+  ApiKeyNames:
+    Type: CommaDelimitedList
+    Default: 'internet-routing-key,vpn-routing-key,admin-key'
+    Description: 'List of API key names to create'
+  
+  # Usage Plan Configuration
+  InternetUsagePlanName:
+    Type: String
+    Default: 'internet-routing-plan'
+    Description: 'Usage plan name for internet routing'
+  
+  VPNUsagePlanName:
+    Type: String
+    Default: 'vpn-routing-plan'
+    Description: 'Usage plan name for VPN routing'
+  
+  AdminUsagePlanName:
+    Type: String
+    Default: 'admin-plan'
+    Description: 'Usage plan name for admin access'
+  
+  # Throttling Configuration
+  InternetThrottleBurst:
+    Type: Number
+    Default: 100
+    Description: 'Burst limit for internet routing'
+  
+  InternetThrottleRate:
+    Type: Number
+    Default: 50
+    Description: 'Rate limit for internet routing (requests/second)'
+  
+  VPNThrottleBurst:
+    Type: Number
+    Default: 200
+    Description: 'Burst limit for VPN routing'
+  
+  VPNThrottleRate:
+    Type: Number
+    Default: 100
+    Description: 'Rate limit for VPN routing (requests/second)'
+  
+  AdminThrottleBurst:
+    Type: Number
+    Default: 500
+    Description: 'Burst limit for admin access'
+  
+  AdminThrottleRate:
+    Type: Number
+    Default: 200
+    Description: 'Rate limit for admin access (requests/second)'
+  
+  # Quota Configuration
+  InternetQuotaLimit:
+    Type: Number
+    Default: 10000
+    Description: 'Daily quota for internet routing'
+  
+  VPNQuotaLimit:
+    Type: Number
+    Default: 20000
+    Description: 'Daily quota for VPN routing'
+  
+  AdminQuotaLimit:
+    Type: Number
+    Default: 50000
+    Description: 'Daily quota for admin access'
+  
+  # IAM Configuration
+  CreateIAMRoles:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: 'Whether to create IAM roles for programmatic access'
+  
+  # Lambda Authorizer Configuration (if using LAMBDA_AUTHORIZER)
+  AuthorizerLambdaArn:
+    Type: String
+    Default: ''
+    Description: 'ARN of Lambda authorizer function (optional)'
+
+Conditions:
+  ShouldCreateApiKeys: !Equals [!Ref CreateApiKeys, 'true']
+  ShouldCreateIAMRoles: !Equals [!Ref CreateIAMRoles, 'true']
+  UseApiKeyAuth: !Equals [!Ref AuthenticationMethod, 'API_KEY']
+  UseIAMAuth: !Equals [!Ref AuthenticationMethod, 'IAM']
+  UseLambdaAuth: !Equals [!Ref AuthenticationMethod, 'LAMBDA_AUTHORIZER']
+  HasAuthorizerLambda: !Not [!Equals [!Ref AuthorizerLambdaArn, '']]
+
+Resources:
+  # API Keys
+  InternetRoutingApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Condition: ShouldCreateApiKeys
+    Properties:
+      Name: !Sub '${ProjectName}-internet-routing-key-${Environment}'
+      Description: 'API Key for internet routing access'
+      Enabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-internet-api-key-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: RoutingMethod
+          Value: 'internet'
+
+  VPNRoutingApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Condition: ShouldCreateApiKeys
+    Properties:
+      Name: !Sub '${ProjectName}-vpn-routing-key-${Environment}'
+      Description: 'API Key for VPN routing access'
+      Enabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-vpn-api-key-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: RoutingMethod
+          Value: 'vpn'
+
+  AdminApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Condition: ShouldCreateApiKeys
+    Properties:
+      Name: !Sub '${ProjectName}-admin-key-${Environment}'
+      Description: 'API Key for admin access to both routing methods'
+      Enabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-admin-api-key-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: RoutingMethod
+          Value: 'admin'
+
+  # Usage Plans
+  InternetUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Condition: ShouldCreateApiKeys
+    Properties:
+      UsagePlanName: !Sub '${ProjectName}-${InternetUsagePlanName}-${Environment}'
+      Description: 'Usage plan for internet routing access'
+      ApiStages:
+        - ApiId: !Ref ApiGatewayId
+          Stage: !Ref Environment
+          Throttle:
+            '/v1/bedrock/invoke-model/POST':
+              BurstLimit: !Ref InternetThrottleBurst
+              RateLimit: !Ref InternetThrottleRate
+            '/v1/bedrock/models/GET':
+              BurstLimit: !Ref InternetThrottleBurst
+              RateLimit: !Ref InternetThrottleRate
+      Throttle:
+        BurstLimit: !Ref InternetThrottleBurst
+        RateLimit: !Ref InternetThrottleRate
+      Quota:
+        Limit: !Ref InternetQuotaLimit
+        Period: DAY
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-internet-usage-plan-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: RoutingMethod
+          Value: 'internet'
+
+  VPNUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Condition: ShouldCreateApiKeys
+    Properties:
+      UsagePlanName: !Sub '${ProjectName}-${VPNUsagePlanName}-${Environment}'
+      Description: 'Usage plan for VPN routing access'
+      ApiStages:
+        - ApiId: !Ref ApiGatewayId
+          Stage: !Ref Environment
+          Throttle:
+            '/v1/vpn/bedrock/invoke-model/POST':
+              BurstLimit: !Ref VPNThrottleBurst
+              RateLimit: !Ref VPNThrottleRate
+            '/v1/vpn/bedrock/models/GET':
+              BurstLimit: !Ref VPNThrottleBurst
+              RateLimit: !Ref VPNThrottleRate
+      Throttle:
+        BurstLimit: !Ref VPNThrottleBurst
+        RateLimit: !Ref VPNThrottleRate
+      Quota:
+        Limit: !Ref VPNQuotaLimit
+        Period: DAY
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-vpn-usage-plan-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: RoutingMethod
+          Value: 'vpn'
+
+  AdminUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Condition: ShouldCreateApiKeys
+    Properties:
+      UsagePlanName: !Sub '${ProjectName}-${AdminUsagePlanName}-${Environment}'
+      Description: 'Usage plan for admin access to both routing methods'
+      ApiStages:
+        - ApiId: !Ref ApiGatewayId
+          Stage: !Ref Environment
+      Throttle:
+        BurstLimit: !Ref AdminThrottleBurst
+        RateLimit: !Ref AdminThrottleRate
+      Quota:
+        Limit: !Ref AdminQuotaLimit
+        Period: DAY
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-admin-usage-plan-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: RoutingMethod
+          Value: 'admin'
+
+  # Usage Plan Keys
+  InternetUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Condition: ShouldCreateApiKeys
+    Properties:
+      KeyId: !Ref InternetRoutingApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref InternetUsagePlan
+
+  VPNUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Condition: ShouldCreateApiKeys
+    Properties:
+      KeyId: !Ref VPNRoutingApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref VPNUsagePlan
+
+  AdminUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Condition: ShouldCreateApiKeys
+    Properties:
+      KeyId: !Ref AdminApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref AdminUsagePlan
+
+  # IAM Roles for Programmatic Access
+  InternetRoutingRole:
+    Type: AWS::IAM::Role
+    Condition: ShouldCreateIAMRoles
+    Properties:
+      RoleName: !Sub '${ProjectName}-internet-routing-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws-us-gov:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                'sts:ExternalId': !Sub '${ProjectName}-internet-${Environment}'
+      Policies:
+        - PolicyName: InternetRoutingPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - execute-api:Invoke
+                Resource:
+                  - !Sub 'arn:aws-us-gov:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/${Environment}/POST/v1/bedrock/invoke-model'
+                  - !Sub 'arn:aws-us-gov:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/${Environment}/GET/v1/bedrock/invoke-model'
+                  - !Sub 'arn:aws-us-gov:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/${Environment}/GET/v1/bedrock/models'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-internet-role-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: RoutingMethod
+          Value: 'internet'
+
+  VPNRoutingRole:
+    Type: AWS::IAM::Role
+    Condition: ShouldCreateIAMRoles
+    Properties:
+      RoleName: !Sub '${ProjectName}-vpn-routing-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws-us-gov:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                'sts:ExternalId': !Sub '${ProjectName}-vpn-${Environment}'
+      Policies:
+        - PolicyName: VPNRoutingPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - execute-api:Invoke
+                Resource:
+                  - !Sub 'arn:aws-us-gov:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/${Environment}/POST/v1/vpn/bedrock/invoke-model'
+                  - !Sub 'arn:aws-us-gov:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/${Environment}/GET/v1/vpn/bedrock/invoke-model'
+                  - !Sub 'arn:aws-us-gov:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/${Environment}/GET/v1/vpn/bedrock/models'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-vpn-role-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: RoutingMethod
+          Value: 'vpn'
+
+  AdminRole:
+    Type: AWS::IAM::Role
+    Condition: ShouldCreateIAMRoles
+    Properties:
+      RoleName: !Sub '${ProjectName}-admin-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws-us-gov:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                'sts:ExternalId': !Sub '${ProjectName}-admin-${Environment}'
+      Policies:
+        - PolicyName: AdminRoutingPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - execute-api:Invoke
+                Resource:
+                  - !Sub 'arn:aws-us-gov:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/${Environment}/*/*'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-admin-role-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: RoutingMethod
+          Value: 'admin'
+
+  # Secrets Manager entries for API keys (for secure storage)
+  InternetApiKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Condition: ShouldCreateApiKeys
+    Properties:
+      Name: !Sub '${ProjectName}/api-keys/internet-routing-${Environment}'
+      Description: 'API key for internet routing access'
+      SecretString: !Sub |
+        {
+          "api_key": "${InternetRoutingApiKey}",
+          "api_key_id": "${InternetRoutingApiKey}",
+          "usage_plan_id": "${InternetUsagePlan}",
+          "routing_method": "internet",
+          "environment": "${Environment}",
+          "created_date": "${AWS::StackName}"
+        }
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-internet-api-key-secret-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: RoutingMethod
+          Value: 'internet'
+
+  VPNApiKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Condition: ShouldCreateApiKeys
+    Properties:
+      Name: !Sub '${ProjectName}/api-keys/vpn-routing-${Environment}'
+      Description: 'API key for VPN routing access'
+      SecretString: !Sub |
+        {
+          "api_key": "${VPNRoutingApiKey}",
+          "api_key_id": "${VPNRoutingApiKey}",
+          "usage_plan_id": "${VPNUsagePlan}",
+          "routing_method": "vpn",
+          "environment": "${Environment}",
+          "created_date": "${AWS::StackName}"
+        }
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-vpn-api-key-secret-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: RoutingMethod
+          Value: 'vpn'
+
+  AdminApiKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Condition: ShouldCreateApiKeys
+    Properties:
+      Name: !Sub '${ProjectName}/api-keys/admin-${Environment}'
+      Description: 'API key for admin access to both routing methods'
+      SecretString: !Sub |
+        {
+          "api_key": "${AdminApiKey}",
+          "api_key_id": "${AdminApiKey}",
+          "usage_plan_id": "${AdminUsagePlan}",
+          "routing_method": "admin",
+          "environment": "${Environment}",
+          "created_date": "${AWS::StackName}"
+        }
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-admin-api-key-secret-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: RoutingMethod
+          Value: 'admin'
+
+  # CloudWatch Log Group for authentication events
+  AuthenticationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/${ProjectName}-auth-${Environment}'
+      RetentionInDays: 90
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-auth-logs-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  # API Key Outputs
+  InternetApiKeyId:
+    Condition: ShouldCreateApiKeys
+    Description: 'Internet routing API key ID'
+    Value: !Ref InternetRoutingApiKey
+    Export:
+      Name: !Sub '${ProjectName}-internet-api-key-id-${Environment}'
+
+  InternetApiKeyValue:
+    Condition: ShouldCreateApiKeys
+    Description: 'Internet routing API key value'
+    Value: !GetAtt InternetRoutingApiKey.Value
+    Export:
+      Name: !Sub '${ProjectName}-internet-api-key-value-${Environment}'
+
+  VPNApiKeyId:
+    Condition: ShouldCreateApiKeys
+    Description: 'VPN routing API key ID'
+    Value: !Ref VPNRoutingApiKey
+    Export:
+      Name: !Sub '${ProjectName}-vpn-api-key-id-${Environment}'
+
+  VPNApiKeyValue:
+    Condition: ShouldCreateApiKeys
+    Description: 'VPN routing API key value'
+    Value: !GetAtt VPNRoutingApiKey.Value
+    Export:
+      Name: !Sub '${ProjectName}-vpn-api-key-value-${Environment}'
+
+  AdminApiKeyId:
+    Condition: ShouldCreateApiKeys
+    Description: 'Admin API key ID'
+    Value: !Ref AdminApiKey
+    Export:
+      Name: !Sub '${ProjectName}-admin-api-key-id-${Environment}'
+
+  AdminApiKeyValue:
+    Condition: ShouldCreateApiKeys
+    Description: 'Admin API key value'
+    Value: !GetAtt AdminApiKey.Value
+    Export:
+      Name: !Sub '${ProjectName}-admin-api-key-value-${Environment}'
+
+  # Usage Plan Outputs
+  InternetUsagePlanId:
+    Condition: ShouldCreateApiKeys
+    Description: 'Internet routing usage plan ID'
+    Value: !Ref InternetUsagePlan
+    Export:
+      Name: !Sub '${ProjectName}-internet-usage-plan-id-${Environment}'
+
+  VPNUsagePlanId:
+    Condition: ShouldCreateApiKeys
+    Description: 'VPN routing usage plan ID'
+    Value: !Ref VPNUsagePlan
+    Export:
+      Name: !Sub '${ProjectName}-vpn-usage-plan-id-${Environment}'
+
+  AdminUsagePlanId:
+    Condition: ShouldCreateApiKeys
+    Description: 'Admin usage plan ID'
+    Value: !Ref AdminUsagePlan
+    Export:
+      Name: !Sub '${ProjectName}-admin-usage-plan-id-${Environment}'
+
+  # IAM Role Outputs
+  InternetRoleArn:
+    Condition: ShouldCreateIAMRoles
+    Description: 'Internet routing IAM role ARN'
+    Value: !GetAtt InternetRoutingRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-internet-role-arn-${Environment}'
+
+  VPNRoleArn:
+    Condition: ShouldCreateIAMRoles
+    Description: 'VPN routing IAM role ARN'
+    Value: !GetAtt VPNRoutingRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-vpn-role-arn-${Environment}'
+
+  AdminRoleArn:
+    Condition: ShouldCreateIAMRoles
+    Description: 'Admin IAM role ARN'
+    Value: !GetAtt AdminRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-admin-role-arn-${Environment}'
+
+  # Secret ARNs
+  InternetApiKeySecretArn:
+    Condition: ShouldCreateApiKeys
+    Description: 'Internet API key secret ARN'
+    Value: !Ref InternetApiKeySecret
+    Export:
+      Name: !Sub '${ProjectName}-internet-api-key-secret-arn-${Environment}'
+
+  VPNApiKeySecretArn:
+    Condition: ShouldCreateApiKeys
+    Description: 'VPN API key secret ARN'
+    Value: !Ref VPNApiKeySecret
+    Export:
+      Name: !Sub '${ProjectName}-vpn-api-key-secret-arn-${Environment}'
+
+  AdminApiKeySecretArn:
+    Condition: ShouldCreateApiKeys
+    Description: 'Admin API key secret ARN'
+    Value: !Ref AdminApiKeySecret
+    Export:
+      Name: !Sub '${ProjectName}-admin-api-key-secret-arn-${Environment}'

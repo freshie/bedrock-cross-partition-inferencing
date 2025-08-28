@@ -1,0 +1,25 @@
+VPN Tunnel Configuration Report
+Generated: Wed Aug 27 22:01:14 EDT 2025
+Project: dual-routing-api-gateway
+Environment: prod
+
+GovCloud VPN Configuration:
+- VPN Connection ID: vpn-031cfaeb996f62462
+- VPN Gateway ID: vgw-0ff3d67133a602ce9
+- Customer Gateway ID: cgw-027869864badb0474
+- State: available
+
+Tunnel Status:
+- Tunnel 1: DOWN (15.200.132.106)
+- Tunnel 2: DOWN (56.137.42.243)
+
+Next Steps:
+1. Deploy Commercial AWS infrastructure using generated CloudFormation template
+2. Configure customer gateway in Commercial AWS
+3. Update route tables in both partitions
+4. Test end-to-end connectivity
+
+Configuration Files Generated:
+- configs/vpn-tunnels/commercial-customer-gateway.yaml
+- configs/vpn-tunnels/deploy-commercial-vpn.sh
+- configs/vpn-tunnels/tunnel-configuration-summary.md

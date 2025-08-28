@@ -1,0 +1,230 @@
+{
+    "widgets": [
+        {
+            "type": "metric",
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/VPN", "TunnelState", "VpnId", "${GOVCLOUD_VPN_CONNECTION_ID}", "TunnelIpAddress", "${GOVCLOUD_VPN_TUNNEL_1_IP}" ],
+                    [ "...", "${GOVCLOUD_VPN_TUNNEL_2_IP}" ],
+                    [ "...", "${COMMERCIAL_VPN_CONNECTION_ID}", "TunnelIpAddress", "${COMMERCIAL_VPN_TUNNEL_1_IP}" ],
+                    [ "...", "${COMMERCIAL_VPN_TUNNEL_2_IP}" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-gov-west-1",
+                "title": "VPN Tunnel Status",
+                "period": 300,
+                "stat": "Maximum",
+                "yAxis": {
+                    "left": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "annotations": {
+                    "horizontal": [
+                        {
+                            "label": "Tunnel UP",
+                            "value": 1
+                        },
+                        {
+                            "label": "Tunnel DOWN",
+                            "value": 0
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12,
+            "y": 0,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/Lambda", "Duration", "FunctionName", "${LAMBDA_FUNCTION_NAME}" ],
+                    [ ".", "Invocations", ".", "." ],
+                    [ ".", "Errors", ".", "." ],
+                    [ ".", "Throttles", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-gov-west-1",
+                "title": "Lambda Function Metrics",
+                "period": 300,
+                "stat": "Sum"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 0,
+            "y": 6,
+            "width": 8,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/VPN", "TunnelLatency", "VpnId", "${GOVCLOUD_VPN_CONNECTION_ID}", "TunnelIpAddress", "${GOVCLOUD_VPN_TUNNEL_1_IP}" ],
+                    [ "...", "${GOVCLOUD_VPN_TUNNEL_2_IP}" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-gov-west-1",
+                "title": "VPN Tunnel Latency (ms)",
+                "period": 300,
+                "stat": "Average",
+                "yAxis": {
+                    "left": {
+                        "min": 0
+                    }
+                }
+            }
+        },
+        {
+            "type": "metric",
+            "x": 8,
+            "y": 6,
+            "width": 8,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/VPN", "PacketDropCount", "VpnId", "${GOVCLOUD_VPN_CONNECTION_ID}", "TunnelIpAddress", "${GOVCLOUD_VPN_TUNNEL_1_IP}" ],
+                    [ "...", "${GOVCLOUD_VPN_TUNNEL_2_IP}" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-gov-west-1",
+                "title": "VPN Packet Drops",
+                "period": 300,
+                "stat": "Sum"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 16,
+            "y": 6,
+            "width": 8,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "${PROJECT_NAME}/VPN", "CrossPartitionLatency" ],
+                    [ ".", "BedrockResponseTime" ],
+                    [ ".", "VPCEndpointLatency" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-gov-west-1",
+                "title": "Application Performance",
+                "period": 300,
+                "stat": "Average"
+            }
+        },
+        {
+            "type": "log",
+            "x": 0,
+            "y": 12,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "query": "SOURCE '${CLOUDWATCH_LOG_GROUP}'\n| fields @timestamp, @message\n| filter @message like /ERROR/\n| sort @timestamp desc\n| limit 20",
+                "region": "us-gov-west-1",
+                "title": "Recent Lambda Errors",
+                "view": "table"
+            }
+        },
+        {
+            "type": "log",
+            "x": 12,
+            "y": 12,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "query": "SOURCE '/aws/vpc/flowlogs'\n| fields @timestamp, srcaddr, dstaddr, action\n| filter action = \"REJECT\"\n| stats count() by srcaddr\n| sort count desc\n| limit 10",
+                "region": "us-gov-west-1",
+                "title": "Top Rejected Source IPs",
+                "view": "table"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 0,
+            "y": 18,
+            "width": 6,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "${REQUEST_LOG_TABLE}" ],
+                    [ ".", "ConsumedWriteCapacityUnits", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-gov-west-1",
+                "title": "DynamoDB Usage",
+                "period": 300,
+                "stat": "Sum"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 6,
+            "y": 18,
+            "width": 6,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/VPC-Endpoint", "PacketDropCount", "VPC-Endpoint-Id", "${VPC_ENDPOINT_SECRETS}" ],
+                    [ ".", "DataProcessed", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-gov-west-1",
+                "title": "VPC Endpoint Health",
+                "period": 300,
+                "stat": "Sum"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12,
+            "y": 18,
+            "width": 6,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/Lambda", "ConcurrentExecutions", "FunctionName", "${LAMBDA_FUNCTION_NAME}" ],
+                    [ ".", "ProvisionedConcurrencyUtilization", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-gov-west-1",
+                "title": "Lambda Concurrency",
+                "period": 300,
+                "stat": "Maximum"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 18,
+            "y": 18,
+            "width": 6,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "${PROJECT_NAME}/VPN", "RequestCount" ],
+                    [ ".", "SuccessRate" ],
+                    [ ".", "ErrorRate" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-gov-west-1",
+                "title": "Request Metrics",
+                "period": 300,
+                "stat": "Average"
+            }
+        }
+    ]
+}

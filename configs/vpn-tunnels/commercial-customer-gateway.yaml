@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Customer Gateway and VPN Connection for GovCloud to Commercial AWS connectivity'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: 'dual-routing-api-gateway'
+    Description: 'Project name for resource naming'
+  
+  Environment:
+    Type: String
+    Default: 'prod'
+    Description: 'Environment name'
+  
+  GovCloudVPCCIDR:
+    Type: String
+    Default: '10.0.0.0/16'
+    Description: 'CIDR block of the GovCloud VPC'
+  
+  CommercialVPCId:
+    Type: AWS::EC2::VPC::Id
+    Description: 'VPC ID in Commercial AWS where the customer gateway will be created'
+
+Resources:
+  # Customer Gateway for GovCloud VPN connection
+  GovCloudCustomerGateway:
+    Type: AWS::EC2::CustomerGateway
+    Properties:
+      Type: ipsec.1
+      BgpAsn: 65000
+      IpAddress: 15.200.132.106  # GovCloud VPN Gateway IP
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-govcloud-cgw'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # VPN Gateway in Commercial AWS
+  CommercialVPNGateway:
+    Type: AWS::EC2::VPNGateway
+    Properties:
+      Type: ipsec.1
+      AmazonSideAsn: 64512
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-commercial-vgw'
+
+  # Attach VPN Gateway to VPC
+  VPNGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpnGatewayId: !Ref CommercialVPNGateway
+      VpcId: !Ref CommercialVPCId
+
+  # VPN Connection
+  GovCloudVPNConnection:
+    Type: AWS::EC2::VPNConnection
+    DependsOn: VPNGatewayAttachment
+    Properties:
+      Type: ipsec.1
+      StaticRoutesOnly: false
+      CustomerGatewayId: !Ref GovCloudCustomerGateway
+      VpnGatewayId: !Ref CommercialVPNGateway
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-govcloud-vpn'
+
+  # Route to GovCloud via VPN
+  GovCloudRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPNGatewayAttachment
+    Properties:
+      RouteTableId: !Ref CommercialRouteTable
+      DestinationCidrBlock: !Ref GovCloudVPCCIDR
+      GatewayId: !Ref CommercialVPNGateway
+
+  # Route table for commercial VPC (you may need to adjust this)
+  CommercialRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref CommercialVPCId
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-commercial-rt'
+
+Outputs:
+  CustomerGatewayId:
+    Description: 'Customer Gateway ID for GovCloud connection'
+    Value: !Ref GovCloudCustomerGateway
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-govcloud-cgw-id'
+
+  VPNGatewayId:
+    Description: 'VPN Gateway ID in Commercial AWS'
+    Value: !Ref CommercialVPNGateway
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-commercial-vgw-id'
+
+  VPNConnectionId:
+    Description: 'VPN Connection ID'
+    Value: !Ref GovCloudVPNConnection
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-govcloud-vpn-id'

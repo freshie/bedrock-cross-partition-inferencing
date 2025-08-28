@@ -1,0 +1,55 @@
+{
+  "test_suite": "internet_routing",
+  "total_tests": 5,
+  "successful_tests": 0,
+  "failed_tests": 5,
+  "success_rate": 0.0,
+  "start_time": "2025-08-27T19:31:37.527269",
+  "end_time": "2025-08-27T19:31:45.355803",
+  "test_results": [
+    {
+      "test_name": "api_gateway_endpoint",
+      "routing_method": "internet",
+      "start_time": "2025-08-27T19:31:37.527875",
+      "success": false,
+      "response_time_ms": 311.2907409667969,
+      "error": "HTTP 403: {\"message\":\"Missing Authentication Token\"}",
+      "end_time": "2025-08-27T19:31:37.859163"
+    },
+    {
+      "test_name": "internet_bedrock_inference",
+      "routing_method": "internet",
+      "start_time": "2025-08-27T19:31:37.859920",
+      "success": false,
+      "response_time_ms": 300.9941577911377,
+      "error": "HTTP 403: {\"message\":\"Missing Authentication Token\"}",
+      "end_time": "2025-08-27T19:31:38.160948"
+    },
+    {
+      "test_name": "internet_authentication",
+      "routing_method": "internet",
+      "start_time": "2025-08-27T19:31:38.162550",
+      "success": false,
+      "error": "Endpoint not accessible: 403",
+      "end_time": "2025-08-27T19:31:38.465440"
+    },
+    {
+      "test_name": "internet_audit_trail",
+      "routing_method": "internet",
+      "start_time": "2025-08-27T19:31:38.466900",
+      "success": false,
+      "error": "Test request failed: 403",
+      "end_time": "2025-08-27T19:31:38.771950"
+    },
+    {
+      "test_name": "internet_performance_baseline",
+      "routing_method": "internet",
+      "start_time": "2025-08-27T19:31:38.773889",
+      "success": false,
+      "response_times": [],
+      "average_response_time": null,
+      "error": "No successful requests",
+      "end_time": "2025-08-27T19:31:45.353143"
+    }
+  ]
+}

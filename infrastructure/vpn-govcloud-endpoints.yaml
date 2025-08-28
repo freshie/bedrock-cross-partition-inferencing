@@ -1,0 +1,302 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'VPC endpoints for GovCloud partition - Secrets Manager, DynamoDB, CloudWatch Logs, CloudWatch Metrics'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'prod'
+    Description: 'Environment name for resource tagging'
+  
+  ProjectName:
+    Type: String
+    Default: 'cross-partition-vpn'
+    Description: 'Project name for resource naming'
+
+  VPCStackName:
+    Type: String
+    Default: 'cross-partition-vpn-govcloud-vpc'
+    Description: 'Name of the VPC stack to import resources from'
+
+Resources:
+  # Secrets Manager VPC Endpoint
+  SecretsManagerEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.secretsmanager'
+      VpcEndpointType: Interface
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSubnetId'
+      SecurityGroupIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSecurityGroupId'
+      PrivateDnsEnabled: true
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - secretsmanager:GetSecretValue
+              - secretsmanager:DescribeSecret
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'aws:PrincipalTag/Project': !Ref ProjectName
+      RouteTableIds: []
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-govcloud-secrets-endpoint'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: 'secretsmanager'
+
+  # DynamoDB VPC Endpoint (Gateway type for cost optimization)
+  DynamoDBEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.dynamodb'
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-PrivateRouteTableId'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - dynamodb:PutItem
+              - dynamodb:GetItem
+              - dynamodb:UpdateItem
+              - dynamodb:DeleteItem
+              - dynamodb:Query
+              - dynamodb:Scan
+              - dynamodb:BatchGetItem
+              - dynamodb:BatchWriteItem
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'aws:PrincipalTag/Project': !Ref ProjectName
+
+  # CloudWatch Logs VPC Endpoint
+  CloudWatchLogsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.logs'
+      VpcEndpointType: Interface
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSubnetId'
+      SecurityGroupIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSecurityGroupId'
+      PrivateDnsEnabled: true
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              - logs:DescribeLogGroups
+              - logs:DescribeLogStreams
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'aws:PrincipalTag/Project': !Ref ProjectName
+      RouteTableIds: []
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-govcloud-logs-endpoint'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: 'logs'
+
+  # CloudWatch Metrics VPC Endpoint
+  CloudWatchMetricsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.monitoring'
+      VpcEndpointType: Interface
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSubnetId'
+      SecurityGroupIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSecurityGroupId'
+      PrivateDnsEnabled: true
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - cloudwatch:PutMetricData
+              - cloudwatch:GetMetricStatistics
+              - cloudwatch:ListMetrics
+              - cloudwatch:GetMetricData
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'aws:PrincipalTag/Project': !Ref ProjectName
+      RouteTableIds: []
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-govcloud-metrics-endpoint'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: 'monitoring'
+
+  # Lambda VPC Endpoint (for Lambda service API calls)
+  LambdaEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.lambda'
+      VpcEndpointType: Interface
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSubnetId'
+      SecurityGroupIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSecurityGroupId'
+      PrivateDnsEnabled: true
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - lambda:InvokeFunction
+              - lambda:GetFunction
+              - lambda:ListFunctions
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'aws:PrincipalTag/Project': !Ref ProjectName
+      RouteTableIds: []
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-govcloud-lambda-endpoint'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: 'lambda'
+
+  # STS VPC Endpoint (for IAM role assumptions)
+  STSEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.sts'
+      VpcEndpointType: Interface
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSubnetId'
+      SecurityGroupIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSecurityGroupId'
+      PrivateDnsEnabled: true
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - sts:AssumeRole
+              - sts:GetCallerIdentity
+              - sts:GetSessionToken
+            Resource: '*'
+      RouteTableIds: []
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-govcloud-sts-endpoint'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: 'sts'
+
+Outputs:
+  SecretsManagerEndpointId:
+    Description: 'VPC Endpoint ID for Secrets Manager'
+    Value: !Ref SecretsManagerEndpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-SecretsManagerEndpointId'
+
+  SecretsManagerEndpointDNS:
+    Description: 'DNS name for Secrets Manager VPC endpoint'
+    Value: !Select [1, !Split [':', !Select [0, !GetAtt SecretsManagerEndpoint.DnsEntries]]]
+    Export:
+      Name: !Sub '${AWS::StackName}-SecretsManagerEndpointDNS'
+
+  DynamoDBEndpointId:
+    Description: 'VPC Endpoint ID for DynamoDB'
+    Value: !Ref DynamoDBEndpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-DynamoDBEndpointId'
+
+  CloudWatchLogsEndpointId:
+    Description: 'VPC Endpoint ID for CloudWatch Logs'
+    Value: !Ref CloudWatchLogsEndpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudWatchLogsEndpointId'
+
+  CloudWatchLogsEndpointDNS:
+    Description: 'DNS name for CloudWatch Logs VPC endpoint'
+    Value: !Select [1, !Split [':', !Select [0, !GetAtt CloudWatchLogsEndpoint.DnsEntries]]]
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudWatchLogsEndpointDNS'
+
+  CloudWatchMetricsEndpointId:
+    Description: 'VPC Endpoint ID for CloudWatch Metrics'
+    Value: !Ref CloudWatchMetricsEndpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudWatchMetricsEndpointId'
+
+  CloudWatchMetricsEndpointDNS:
+    Description: 'DNS name for CloudWatch Metrics VPC endpoint'
+    Value: !Select [1, !Split [':', !Select [0, !GetAtt CloudWatchMetricsEndpoint.DnsEntries]]]
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudWatchMetricsEndpointDNS'
+
+  LambdaEndpointId:
+    Description: 'VPC Endpoint ID for Lambda'
+    Value: !Ref LambdaEndpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaEndpointId'
+
+  LambdaEndpointDNS:
+    Description: 'DNS name for Lambda VPC endpoint'
+    Value: !Select [1, !Split [':', !Select [0, !GetAtt LambdaEndpoint.DnsEntries]]]
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaEndpointDNS'
+
+  STSEndpointId:
+    Description: 'VPC Endpoint ID for STS'
+    Value: !Ref STSEndpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-STSEndpointId'
+
+  STSEndpointDNS:
+    Description: 'DNS name for STS VPC endpoint'
+    Value: !Select [1, !Split [':', !Select [0, !GetAtt STSEndpoint.DnsEntries]]]
+    Export:
+      Name: !Sub '${AWS::StackName}-STSEndpointDNS'
+
+  # Environment variables for Lambda configuration
+  VPCEndpointConfiguration:
+    Description: 'VPC endpoint configuration for Lambda environment variables'
+    Value: !Sub |
+      VPC_ENDPOINT_SECRETS=https://${SecretsManagerEndpoint}.secretsmanager.${AWS::Region}.amazonaws.com
+      VPC_ENDPOINT_DYNAMODB=https://dynamodb.${AWS::Region}.amazonaws.com
+      VPC_ENDPOINT_LOGS=https://${CloudWatchLogsEndpoint}.logs.${AWS::Region}.amazonaws.com
+      VPC_ENDPOINT_MONITORING=https://${CloudWatchMetricsEndpoint}.monitoring.${AWS::Region}.amazonaws.com
+      VPC_ENDPOINT_LAMBDA=https://${LambdaEndpoint}.lambda.${AWS::Region}.amazonaws.com
+      VPC_ENDPOINT_STS=https://${STSEndpoint}.sts.${AWS::Region}.amazonaws.com
+    Export:
+      Name: !Sub '${AWS::StackName}-VPCEndpointConfiguration'

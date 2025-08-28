@@ -1,0 +1,25 @@
+VPN Lambda Function Test Report
+Generated: Wed Aug 27 22:33:07 EDT 2025
+Function Name: dual-routing-api-gateway-prod-vpn-lambda
+Project: dual-routing-api-gateway
+Environment: prod
+
+Test Results:
+- Function Existence: PASS
+- Function Configuration: PASS
+- Function Invocation: PASS
+- VPC Connectivity: Test completed
+- CloudWatch Logs: Test completed
+
+Test Categories:
+- Basic functionality validation
+- VPC configuration verification
+- Environment variable validation
+- CloudWatch integration testing
+- VPC endpoint connectivity testing
+
+Next Steps:
+1. Review any warnings or failures above
+2. Test VPN Lambda with API Gateway integration
+3. Run end-to-end tests with actual Bedrock requests
+4. Monitor function performance in production
