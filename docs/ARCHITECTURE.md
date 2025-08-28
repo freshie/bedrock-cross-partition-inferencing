@@ -47,6 +47,14 @@ This version provides a **production-ready dual routing system** between AWS Gov
 - **Cost**: ~$50-100/month (includes VPN Gateway charges)
 - **Use Case**: Production workloads, sensitive data, compliance requirements
 
+##### **Option 3: Direct Connect Routing (Enterprise Scale)**
+- **Connectivity**: Dedicated network connection via AWS Direct Connect
+- **Security**: Private dedicated connection, highest security level
+- **Performance**: Consistent low latency (~50-200ms), high bandwidth (1Gbps-100Gbps)
+- **Reliability**: Dedicated connection with optional redundancy
+- **Cost**: ~$200-2,500/month (depends on bandwidth and location)
+- **Use Case**: High-volume applications, mission-critical workloads, enterprise scale
+
 #### 🎯 **Use Cases This Version Supports**
 - ✅ **Development & Testing**: Perfect for AI application development
 - ✅ **Proof of Concepts**: Validate AI use cases before production investment
@@ -54,11 +62,11 @@ This version provides a **production-ready dual routing system** between AWS Gov
 - ✅ **Rapid Prototyping**: Get AI capabilities running in hours, not months
 - ✅ **Model Evaluation**: Test different AI models to find the best fit
 
-## 🏗️ Dual Routing Architecture
+## 🏗️ Three Architecture Options
 
-### 🔄 **How Dual Routing Works**
+### 🔄 **How Multi-Path Routing Works**
 
-The system intelligently routes Bedrock requests through two possible paths:
+The system provides three architectural approaches for cross-partition AI access, each with different connectivity methods:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -69,38 +77,44 @@ The system intelligently routes Bedrock requests through two possible paths:
 │       ▼                                                                     │
 │  ┌─────────────┐    ┌──────────────────┐    ┌─────────────────────────────┐ │
 │  │ API Gateway │───▶│ Lambda Authorizer│───▶│ Routing Decision Logic      │ │
-│  │             │    │ (Bearer Token)   │    │ (Internet vs VPN)           │ │
+│  │             │    │ (Bearer Token)   │    │ (Internet/VPN/DirectConnect)│ │
 │  └─────────────┘    └──────────────────┘    └─────────────────────────────┘ │
 │                                                       │                     │
-│                                    ┌─────────────────┴─────────────────┐   │
-│                                    ▼                                   ▼   │
-│                          ┌─────────────────┐                ┌─────────────┐ │
-│                          │ Internet Lambda │                │ VPN Lambda  │ │
-│                          │ (Primary Route) │                │ (Enhanced)  │ │
-│                          └─────────────────┘                └─────────────┘ │
+│                          ┌─────────────────────────────┴─────────────────┐ │
+│                          ▼                     ▼                         ▼ │
+│                ┌─────────────────┐   ┌─────────────┐   ┌─────────────────┐ │
+│                │ Internet Lambda │   │ VPN Lambda  │   │ DirectConnect   │ │
+│                │ (Fast Deploy)   │   │ (Enhanced)  │   │ Lambda (Scale)  │ │
+│                └─────────────────┘   └─────────────┘   └─────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────────┘
-                                    │                                   │
-                                    ▼                                   ▼
+                          │                     │                         │
+                          ▼                     ▼                         ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        Commercial AWS (us-east-1)                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                    │                                   │     │
-│              ┌─────────────────────┴─────────────────┐                 │     │
-│              ▼                                       ▼                 ▼     │
-│    ┌─────────────────┐                    ┌─────────────────────────────┐   │
-│    │ Public Internet │                    │ VPC with Private Subnets    │   │
-│    │ HTTPS/TLS       │                    │ ┌─────────────────────────┐ │   │
-│    │                 │                    │ │    VPC Endpoints        │ │   │
-│    │                 │                    │ │ ┌─────────────────────┐ │ │   │
-│    │                 ▼                    │ │ │  Bedrock Endpoint   │ │ │   │
-│    │    ┌─────────────────────────────┐   │ │ │  Secrets Endpoint   │ │ │   │
-│    │    │     Amazon Bedrock          │◄──┼─┼─┤  Logs Endpoint      │ │ │   │
-│    │    │  - Claude 4.1               │   │ │ └─────────────────────┘ │ │   │
-│    │    │  - Claude 3.5 Sonnet        │   │ └─────────────────────────┘ │   │
-│    │    │  - Nova Premier              │   └─────────────────────────────┘   │
-│    │    │  - Llama 4 Scout             │                                     │
-│    │    └─────────────────────────────┘                                     │
-│    └─────────────────┘                                                      │
+│                          │                     │                         │ │
+│        ┌─────────────────┴─────────────────────┴─────────────────────────┘ │
+│        ▼                                       ▼                           │
+│ ┌─────────────────┐              ┌─────────────────────────────────────────┐ │
+│ │ Public Internet │              │ Private Network Infrastructure          │ │
+│ │ HTTPS/TLS       │              │ ┌─────────────────┐ ┌─────────────────┐ │ │
+│ │                 │              │ │ VPN Tunnels     │ │ Direct Connect  │ │ │
+│ │                 ▼              │ │ (IPSec)         │ │ (Dedicated)     │ │ │
+│ │ ┌─────────────────────────────┐ │ └─────────────────┘ └─────────────────┘ │ │
+│ │ │     Amazon Bedrock          │ │           │                   │         │ │
+│ │ │  - Claude 4.1               │◄┼───────────┴───────────────────┘         │ │
+│ │ │  - Claude 3.5 Sonnet        │ │ ┌─────────────────────────────────────┐ │ │
+│ │ │  - Nova Premier              │ │ │    VPC with Private Subnets         │ │ │
+│ │ │  - Llama 4 Scout             │ │ │ ┌─────────────────────────────────┐ │ │ │
+│ │ └─────────────────────────────┘ │ │ │       VPC Endpoints             │ │ │ │
+│ └─────────────────┘               │ │ │ ┌─────────────────────────────┐ │ │ │ │
+│                                   │ │ │ │  Bedrock Runtime Endpoint   │ │ │ │ │
+│                                   │ │ │ │  Secrets Manager Endpoint   │ │ │ │ │
+│                                   │ │ │ │  CloudWatch Logs Endpoint   │ │ │ │ │
+│                                   │ │ │ └─────────────────────────────┘ │ │ │ │
+│                                   │ │ └─────────────────────────────────┘ │ │ │
+│                                   │ └─────────────────────────────────────┘ │ │
+│                                   └─────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -217,11 +231,198 @@ The system uses bearer tokens for secure cross-partition authentication:
 
 ### AWS Commercial Components (us-east-1)
 
-#### VPN-Enhanced Infrastructure
+## 🏢 Commercial Account Requirements
+
+### 📋 **Required Setup by Architecture Option**
+
+#### **🌐 Option 1: Internet-Based Architecture Requirements**
+
+##### **Amazon Bedrock Setup**
+1. **Enable Bedrock Service**
+   - Navigate to Amazon Bedrock console in us-east-1
+   - Accept the Bedrock service terms and conditions
+   - Enable Bedrock API access for your account
+
+2. **Model Access Requests**
+   ```bash
+   # Required models to request access for:
+   - anthropic.claude-3-5-sonnet-20241022-v2:0  # Claude 3.5 Sonnet
+   - anthropic.claude-3-haiku-20240307-v1:0     # Claude 3 Haiku  
+   - amazon.nova-premier-v1:0                    # Nova Premier
+   - amazon.nova-lite-v1:0                      # Nova Lite
+   - meta.llama3-2-90b-instruct-v1:0            # Llama 3.2 90B
+   ```
+   - Go to Bedrock console → Model access → Request access for each model
+   - Wait for approval (usually instant for most models)
+
+3. **Inference Profiles (Required for Advanced Models)**
+   ```bash
+   # Models requiring inference profiles:
+   - Claude 4.1 (when available)
+   - Nova Premier (for multi-region load balancing)
+   - Advanced Llama models
+   ```
+   - System will auto-create profiles when needed
+   - Or manually create via Bedrock console → Inference profiles
+
+4. **Bedrock API Key Creation**
+   ```bash
+   # Create IAM user for cross-partition access
+   aws iam create-user --user-name bedrock-cross-partition-user
+   
+   # Create service-specific credential (Bedrock API key)
+   aws iam create-service-specific-credential \
+     --user-name bedrock-cross-partition-user \
+     --service-name bedrock.amazonaws.com
+   ```
+
+##### **IAM Permissions Required**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BedrockModelAccess",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:ListFoundationModels",
+        "bedrock:GetFoundationModel",
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:us-east-1::foundation-model/*",
+        "arn:aws:bedrock:us-east-1:*:inference-profile/*"
+      ]
+    },
+    {
+      "Sid": "InferenceProfileManagement",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:CreateInferenceProfile",
+        "bedrock:GetInferenceProfile",
+        "bedrock:ListInferenceProfiles",
+        "bedrock:DeleteInferenceProfile"
+      ],
+      "Resource": "arn:aws:bedrock:us-east-1:*:inference-profile/*"
+    }
+  ]
+}
+```
+
+#### **🔒 Option 2: VPN-Based Architecture Requirements**
+
+##### **All Internet Requirements PLUS:**
+
+1. **VPC Infrastructure**
+   ```bash
+   # Create dedicated VPC for cross-partition connectivity
+   VPC CIDR: 10.1.0.0/16
+   Private Subnets: 
+     - 10.1.1.0/24 (us-east-1a)
+     - 10.1.2.0/24 (us-east-1b)
+   ```
+
+2. **VPC Endpoints (Required)**
+   ```bash
+   # Create VPC endpoints for private connectivity
+   - com.amazonaws.us-east-1.bedrock-runtime
+   - com.amazonaws.us-east-1.secretsmanager  
+   - com.amazonaws.us-east-1.logs
+   - com.amazonaws.us-east-1.monitoring
+   ```
+
+3. **Customer Gateway Configuration**
+   ```bash
+   # VPN tunnel configuration
+   - Customer Gateway IP: <Your GovCloud VPN Gateway IP>
+   - BGP ASN: 65000 (or your organization's ASN)
+   - Routing: Static or BGP
+   ```
+
+4. **Security Groups**
+   ```json
+   {
+     "GroupName": "bedrock-cross-partition-sg",
+     "Rules": [
+       {
+         "Type": "Ingress",
+         "Protocol": "tcp",
+         "Port": 443,
+         "Source": "10.0.0.0/16",
+         "Description": "HTTPS from GovCloud VPC"
+       }
+     ]
+   }
+   ```
+
+#### **⚡ Option 3: Direct Connect Architecture Requirements**
+
+##### **All VPN Requirements PLUS:**
+
+1. **Direct Connect Gateway**
+   ```bash
+   # Create Direct Connect Gateway
+   - Name: govcloud-commercial-dxgw
+   - Amazon ASN: 64512
+   - Associated VGWs: Commercial VPC Virtual Gateway
+   ```
+
+2. **Virtual Interface (VIF) Configuration**
+   ```bash
+   # Private VIF for cross-partition connectivity
+   - VLAN ID: <Assigned by AWS>
+   - BGP ASN: <Your organization's ASN>
+   - BGP Key: <Optional BGP authentication>
+   - Prefixes: 10.1.0.0/16 (Commercial VPC)
+   ```
+
+3. **Bandwidth Requirements**
+   ```bash
+   # Recommended bandwidth by usage:
+   - Development/Testing: 1Gbps
+   - Production (Low Volume): 1-5Gbps  
+   - Production (High Volume): 10Gbps+
+   - Enterprise Scale: 50-100Gbps
+   ```
+
+4. **Redundancy Setup**
+   ```bash
+   # For production workloads:
+   - Primary Direct Connect: Location A
+   - Secondary Direct Connect: Location B
+   - Backup VPN: For failover scenarios
+   ```
+
+### 🔧 **Network Architecture Comparison**
+
+#### **Internet Architecture (Option 1)**
+```
+GovCloud Lambda → Internet → Commercial Bedrock
+                 (HTTPS/TLS)
+```
+
+#### **VPN Architecture (Option 2)**  
+```
+GovCloud Lambda → VPN Tunnel → Commercial VPC → VPC Endpoints → Bedrock
+                 (IPSec)        (Private)       (Private)
+```
+
+#### **Direct Connect Architecture (Option 3)**
+```
+GovCloud Lambda → Direct Connect → Commercial VPC → VPC Endpoints → Bedrock
+                 (Dedicated Line)   (Private)       (Private)
+```
+
+**Note:** Direct Connect uses the same VPC infrastructure as VPN but replaces the VPN tunnel with a dedicated network connection for enhanced performance and reliability.
+
+### AWS Commercial Infrastructure Components
+
+#### VPN/Direct Connect Enhanced Infrastructure
 - **Commercial VPC**: Dedicated VPC for cross-partition connectivity
 - **VPC Endpoints**: Private endpoints for AWS services (Bedrock, Secrets Manager, CloudWatch)
-- **Private Subnets**: All VPN traffic terminates in private subnets
-- **Security Groups**: Restrictive rules allowing only GovCloud VPN traffic
+- **Private Subnets**: All private traffic terminates in private subnets
+- **Security Groups**: Restrictive rules allowing only GovCloud traffic
 
 #### 1. Amazon Bedrock
 - **Purpose**: AI model hosting and inference
@@ -248,6 +449,228 @@ The system uses bearer tokens for secure cross-partition authentication:
   - Enhanced permissions for inference profiles
   - Base64-encoded for secure transmission
   - Automatic expiration and rotation support
+
+## 🏢 **Commercial Account Setup Guide**
+
+### 📋 **Step-by-Step Commercial Account Configuration**
+
+#### **1. Enable Amazon Bedrock Service**
+```bash
+# Navigate to Bedrock console in us-east-1
+# Accept service terms and enable API access
+aws bedrock list-foundation-models --region us-east-1
+```
+
+#### **2. Request Model Access**
+The following models require explicit access requests:
+
+| Model Family | Model ID | Access Required | Use Case |
+|--------------|----------|----------------|----------|
+| **Claude 3.5 Sonnet** | `anthropic.claude-3-5-sonnet-20241022-v2:0` | ✅ Yes | Text generation, coding |
+| **Claude 3 Haiku** | `anthropic.claude-3-haiku-20240307-v1:0` | ✅ Yes | Fast responses, simple tasks |
+| **Nova Premier** | `amazon.nova-premier-v1:0` | ✅ Yes | Multimodal AI, advanced reasoning |
+| **Nova Lite** | `amazon.nova-lite-v1:0` | ✅ Yes | Lightweight multimodal |
+| **Llama 3.2 90B** | `meta.llama3-2-90b-instruct-v1:0` | ✅ Yes | Open source, large context |
+| **Llama 3.2 11B** | `meta.llama3-2-11b-instruct-v1:0` | ✅ Yes | Balanced performance |
+
+**How to Request Access:**
+1. Go to Bedrock console → Model access
+2. Select each model and click "Request model access"
+3. Provide use case justification
+4. Wait for approval (usually instant for most models)
+
+#### **3. Configure Inference Profiles**
+Some advanced models require inference profiles for optimal performance:
+
+```bash
+# Models requiring inference profiles:
+- Claude 4.1 (when available)
+- Nova Premier (for multi-region load balancing)
+- Advanced multimodal models
+
+# Profiles are auto-created by the system when needed
+# Or create manually via Bedrock console → Inference profiles
+```
+
+#### **4. Create Cross-Partition API User**
+```bash
+# Create dedicated IAM user for cross-partition access
+aws iam create-user \
+  --user-name bedrock-cross-partition-user \
+  --tags Key=Purpose,Value=CrossPartitionAccess
+
+# Create service-specific credential (Bedrock API key)
+aws iam create-service-specific-credential \
+  --user-name bedrock-cross-partition-user \
+  --service-name bedrock.amazonaws.com
+```
+
+#### **5. Apply Required IAM Policy**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BedrockModelAccess",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:ListFoundationModels",
+        "bedrock:GetFoundationModel",
+        "bedrock:ListModelCustomizationJobs",
+        "bedrock:GetModelCustomizationJob"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "BedrockInference",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:*::foundation-model/*",
+        "arn:aws:bedrock:*:*:custom-model/*",
+        "arn:aws:bedrock:*:*:inference-profile/*"
+      ]
+    },
+    {
+      "Sid": "BedrockInferenceProfiles",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:CreateInferenceProfile",
+        "bedrock:GetInferenceProfile",
+        "bedrock:ListInferenceProfiles",
+        "bedrock:DeleteInferenceProfile",
+        "bedrock:UpdateInferenceProfile"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:*:*:inference-profile/*",
+        "arn:aws:bedrock:*::foundation-model/*"
+      ]
+    },
+    {
+      "Sid": "BedrockConverse",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:Converse",
+        "bedrock:ConverseStream"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:*::foundation-model/*",
+        "arn:aws:bedrock:*:*:inference-profile/*"
+      ]
+    }
+  ]
+}
+```
+
+### 🔧 **Architecture-Specific Requirements**
+
+#### **🌐 Internet-Based Architecture**
+**Commercial Account Needs:**
+- ✅ Bedrock service enabled
+- ✅ Model access approved
+- ✅ API user with Bedrock permissions
+- ✅ Service-specific credentials created
+- ❌ No VPC infrastructure needed
+- ❌ No VPN configuration needed
+
+**Network Requirements:**
+- Internet connectivity to Bedrock endpoints
+- Standard AWS API rate limits apply
+- HTTPS/TLS encryption for all calls
+
+#### **🔒 VPN-Based Architecture**  
+**Commercial Account Needs:**
+- ✅ All Internet requirements PLUS:
+- ✅ Dedicated VPC (10.1.0.0/16 recommended)
+- ✅ Private subnets in multiple AZs
+- ✅ VPC endpoints for Bedrock, Secrets Manager, CloudWatch
+- ✅ Customer Gateway configuration
+- ✅ Security groups allowing GovCloud traffic
+
+**VPC Endpoints Required:**
+```bash
+# Create these VPC endpoints in Commercial account:
+com.amazonaws.us-east-1.bedrock-runtime
+com.amazonaws.us-east-1.secretsmanager
+com.amazonaws.us-east-1.logs
+com.amazonaws.us-east-1.monitoring
+```
+
+**Security Group Configuration:**
+```json
+{
+  "GroupName": "cross-partition-bedrock-sg",
+  "Description": "Allow GovCloud cross-partition access",
+  "VpcId": "vpc-12345678",
+  "SecurityGroupRules": [
+    {
+      "IpProtocol": "tcp",
+      "FromPort": 443,
+      "ToPort": 443,
+      "CidrIp": "10.0.0.0/16",
+      "Description": "HTTPS from GovCloud VPC"
+    }
+  ]
+}
+```
+
+#### **⚡ Direct Connect Architecture**
+**Commercial Account Needs:**
+- ✅ All VPN requirements PLUS:
+- ✅ Direct Connect Gateway
+- ✅ Virtual Interface (VIF) configuration
+- ✅ BGP routing configuration
+- ✅ Bandwidth allocation (1Gbps-100Gbps)
+- ✅ Optional redundant connections
+
+**Direct Connect Configuration:**
+```bash
+# Direct Connect Gateway
+Name: govcloud-commercial-dxgw
+Amazon ASN: 64512
+Associated VGWs: Commercial VPC Virtual Gateway
+
+# Virtual Interface (VIF)
+Type: Private VIF
+VLAN ID: <Assigned by AWS>
+BGP ASN: <Your organization's ASN>
+BGP Authentication Key: <Optional>
+Advertised Prefixes: 10.1.0.0/16
+```
+
+### 💰 **Cost Implications by Architecture**
+
+#### **Internet Architecture Costs**
+```bash
+Monthly Costs (Commercial Account):
+- Bedrock API calls: $0.01-$1.00 per 1K tokens (varies by model)
+- Data transfer: $0.09/GB outbound (minimal for text)
+- No infrastructure costs
+Total: ~$10-100/month (usage dependent)
+```
+
+#### **VPN Architecture Costs**
+```bash
+Monthly Costs (Commercial Account):
+- All Internet costs PLUS:
+- VPN Gateway: $36/month per connection
+- VPC Endpoints: $7.20/month per endpoint (4 endpoints = $28.80)
+- Data processing: $0.045/GB through VPC endpoints
+Total: ~$75-200/month (plus usage)
+```
+
+#### **Direct Connect Architecture Costs**
+```bash
+Monthly Costs (Commercial Account):
+- All VPN costs PLUS:
+- Direct Connect Port: $216-2,250/month (depends on bandwidth)
+- Data transfer: $0.02-0.05/GB (lower than internet)
+- Direct Connect Gateway: No additional charge
+Total: ~$300-2,500/month (plus usage)
+```
 
 ## 🔧 **Technical Implementation Details**
 
@@ -351,6 +774,44 @@ sequenceDiagram
     VLambda-->>AG: Return response
     AG-->>Client: AI model response
 ```
+
+### ⚡ **Direct Connect Routing Flow (Enterprise Scale)**
+
+```mermaid
+sequenceDiagram
+    participant Client as GovCloud Client
+    participant AG as API Gateway
+    participant Auth as Lambda Authorizer
+    participant SM as Secrets Manager
+    participant DCLambda as Direct Connect Lambda (VPC)
+    participant DXGateway as Direct Connect Gateway
+    participant VPCEndpoint as VPC Endpoint
+    participant Bedrock as Commercial Bedrock
+
+    Client->>AG: POST /bedrock/invoke<br/>Authorization: Bearer <token>
+    AG->>Auth: Validate bearer token
+    Auth->>SM: Get token validation data
+    SM-->>Auth: Return validation info
+    Auth-->>AG: Token valid, proceed
+    
+    AG->>DCLambda: Invoke with request payload
+    Note over DCLambda: Lambda runs in VPC private subnet
+    DCLambda->>SM: Get commercial AWS credentials<br/>(via VPC endpoint)
+    SM-->>DCLambda: Return AWS access keys
+    
+    Note over DCLambda,DXGateway: All traffic through dedicated connection
+    DCLambda->>DXGateway: Route via Direct Connect
+    DXGateway->>VPCEndpoint: Forward to Commercial VPC
+    VPCEndpoint->>Bedrock: Private network call to Bedrock
+    
+    Bedrock-->>VPCEndpoint: AI model response
+    VPCEndpoint-->>DXGateway: Response via private network
+    DXGateway-->>DCLambda: Response via Direct Connect
+    DCLambda-->>AG: Return response
+    AG-->>Client: AI model response
+```
+
+**Note:** The Direct Connect architecture uses the same Lambda function and VPC infrastructure as the VPN approach, but replaces the VPN tunnel with a dedicated Direct Connect link for enhanced performance and reliability.
 
 ### 🔄 **Bearer Token Authentication Details**
 
@@ -722,24 +1183,95 @@ Every request is logged to DynamoDB with complete details:
 - **Retention Policies**: Automatic log cleanup after 30 days
 - **Access Control**: Least-privilege IAM roles and policies
 
-## 🚀 Deployment Requirements
+## 🎯 **Architecture Decision Guide**
 
-### Commercial AWS Account Setup
+### 📊 **Comparison Matrix**
 
-1. **Create Bedrock API Key**:
-   ```bash
-   # Create IAM user for Bedrock API
-   aws iam create-user --user-name bedrock-api-user
-   
-   # Attach enhanced Bedrock policy
-   aws iam attach-user-policy \
-     --user-name bedrock-api-user \
-     --policy-arn arn:aws:iam::ACCOUNT:policy/BedrockEnhancedAccess
-   
-   # Generate API key
-   aws iam create-service-specific-credential \
-     --user-name bedrock-api-user \
-     --service-name bedrock.amazonaws.com
+| Feature | Internet | VPN | Direct Connect |
+|---------|----------|-----|----------------|
+| **Setup Time** | 1-2 hours | 1-2 days | 1-4 weeks |
+| **Monthly Cost** | $10-100 | $75-200 | $300-2,500 |
+| **Security Level** | Standard | High | Highest |
+| **Performance** | 200-500ms | 300-600ms | 50-200ms |
+| **Bandwidth** | Variable | Up to 1.25Gbps | 1Gbps-100Gbps |
+| **Complexity** | Low | Medium | High |
+| **Production Ready** | Testing/Dev | ✅ Yes | ✅ Yes |
+| **Compliance** | Basic | Enhanced | Maximum |
+
+### 🎯 **When to Use Each Architecture**
+
+#### **🌐 Choose Internet Architecture When:**
+- ✅ **Getting Started**: First time implementing cross-partition access
+- ✅ **Development/Testing**: Building and testing AI applications
+- ✅ **Proof of Concept**: Validating AI use cases before production investment
+- ✅ **Low Volume**: < 1000 requests/day
+- ✅ **Budget Conscious**: Minimal infrastructure costs required
+- ✅ **Fast Deployment**: Need solution running in hours, not weeks
+
+#### **🔒 Choose VPN Architecture When:**
+- ✅ **Production Workloads**: Deploying to production environments
+- ✅ **Sensitive Data**: Processing data requiring enhanced security
+- ✅ **Compliance Requirements**: Meeting regulatory standards (FedRAMP, FISMA)
+- ✅ **Medium Volume**: 1,000-10,000 requests/day
+- ✅ **Private Connectivity**: Requirement for no internet exposure
+- ✅ **Balanced Cost/Security**: Good security without Direct Connect costs
+
+#### **⚡ Choose Direct Connect Architecture When:**
+- ✅ **Enterprise Scale**: High-volume applications (>10,000 requests/day)
+- ✅ **Mission Critical**: Applications requiring maximum reliability
+- ✅ **Consistent Performance**: Need predictable, low-latency responses
+- ✅ **High Bandwidth**: Large payloads or streaming requirements
+- ✅ **Maximum Security**: Highest security and compliance requirements
+- ✅ **Cost Justified**: Volume justifies dedicated connection costs
+
+### 🔄 **Migration Path**
+
+Organizations can start simple and upgrade as needs grow:
+
+```
+Phase 1: Internet Architecture
+    ↓ (Add security requirements)
+Phase 2: VPN Architecture  
+    ↓ (Add scale/performance requirements)
+Phase 3: Direct Connect Architecture
+```
+
+Each phase builds on the previous, allowing incremental improvements without starting over.
+
+## 🚀 **Getting Started**
+
+### **Quick Start (Internet Architecture)**
+```bash
+# 1. Deploy GovCloud infrastructure
+./scripts/deploy-over-internet.sh
+
+# 2. Configure commercial account (see Commercial Account Setup Guide above)
+# 3. Test the connection
+./scripts/test-claude-4-1.sh
+```
+
+### **Production Deployment (VPN Architecture)**
+```bash
+# 1. Deploy VPN infrastructure
+./scripts/deploy-complete-vpn-infrastructure.sh
+
+# 2. Configure commercial VPC and endpoints (see VPN requirements above)
+# 3. Test VPN connectivity
+./scripts/test-vpn-comprehensive.sh
+```
+
+### **Enterprise Scale (Direct Connect Architecture)**
+```bash
+# 1. Set up Direct Connect (requires AWS support)
+# 2. Deploy VPN infrastructure (same as VPN architecture)
+# 3. Replace VPN with Direct Connect routing
+# 4. Test enterprise connectivity
+./scripts/test-end-to-end-routing.sh
+```
+
+---
+
+**💡 Recommendation**: Start with Internet architecture for immediate results, then migrate to VPN or Direct Connect as your requirements and scale grow.e-name bedrock.amazonaws.com
    ```
 
 2. **Enable Bedrock Models**:
