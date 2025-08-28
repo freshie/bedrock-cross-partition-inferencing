@@ -177,7 +177,7 @@ Testing Framework:
 ### **Complete Documentation Suite**
 ```
 Documentation:
-├── RELEASE-NOTES-v1.3.0.md             ✅ Release notes
+├── docs/release-notes/                  ✅ Release notes directory
 ├── docs/vpn-tunnel-setup-guide.md      ✅ VPN setup guide
 ├── docs/vpn-deployment-status-report.md ✅ Deployment status
 ├── docs/security-checklist.md          ✅ Security checklist
@@ -266,7 +266,7 @@ Documentation:
 - **Security**: `docs/security-checklist.md`
 - **VPN Setup**: `docs/vpn-tunnel-setup-guide.md`
 - **Deployment**: `docs/vpn-deployment-status-report.md`
-- **Release Notes**: `RELEASE-NOTES-v1.3.0.md`
+- **Release Notes**: `docs/release-notes/RELEASE-NOTES-v1.3.0.md`
 
 ---
 

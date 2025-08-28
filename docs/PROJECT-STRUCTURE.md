@@ -31,7 +31,7 @@ cross-partition-inferencing/
 | `ARCHITECTURE.md` | Detailed system architecture and design decisions |
 | `CHANGELOG.md` | Version history and release notes |
 | `CURRENT-STATE-v1.3.0.md` | Current system state and deployment status |
-| `docs/RELEASE-NOTES-v1.3.0.md` | Detailed release notes for v1.3.0 |
+| `docs/release-notes/` | Release notes for all versions |
 | `SECURITY-APPROVAL.md` | Security review and approval documentation |
 
 ## 🏗️ **Infrastructure Components**
@@ -122,9 +122,11 @@ cross-partition-inferencing/
 ## 📚 **Documentation Directory** (`docs/`)
 
 ### **Release Documentation**
-- `RELEASE-NOTES-v1.3.0.md` - Security Enhanced Release notes
-- `RELEASE-NOTES-v1.3.1.md` - Repository Cleanup Release notes
-- `RELEASE-NOTES-v1.3.2.md` - Autofix Release notes
+- `docs/release-notes/` - All version release notes
+  - `RELEASE_NOTES_v1.4.0.md` - Enterprise Direct Connect Release
+  - `RELEASE-NOTES-v1.3.2.md` - Autofix Release notes
+  - `RELEASE-NOTES-v1.3.1.md` - Repository Cleanup Release notes
+  - `RELEASE-NOTES-v1.3.0.md` - Security Enhanced Release notes
 
 ### **Setup and Configuration**
 - `SETUP_GUIDE.md` - Complete setup instructions

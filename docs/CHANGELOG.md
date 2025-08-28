@@ -294,7 +294,7 @@ Successfully implemented enterprise-grade security scanning and validation frame
 - **`docs/vpn-testing-comparison.md`**: VPN vs. internet routing comparison
 
 #### Release Documentation
-- **`RELEASE-NOTES-v1.3.0.md`**: Comprehensive release notes with security focus
+- **`docs/release-notes/RELEASE-NOTES-v1.3.0.md`**: Comprehensive release notes with security focus
 - **`CURRENT-STATE-v1.3.0.md`**: Complete system state and capabilities overview
 
 ### 🔒 Security Fixes Applied
