@@ -163,13 +163,13 @@ aws secretsmanager update-secret \
 
 ```bash
 # Test basic functionality
-./test-invoke-model.sh
+./scripts/test-invoke-model.sh
 
 # Test Claude 4.1 specifically  
-./test-claude-4-1.sh
+./scripts/test-claude-4-1.sh
 
 # Run comprehensive validation
-./test-cross-partition.sh
+./scripts/test-cross-partition.sh
 ```
 
 📖 **For detailed setup instructions, see [Setup Guide](docs/SETUP_GUIDE.md)**
@@ -292,12 +292,20 @@ This repository demonstrates a **progressive implementation strategy** where org
 ```
 ├── infrastructure/          # CloudFormation templates
 ├── lambda/                 # Lambda function code
-├── tests/                  # Test scripts
+├── scripts/                # All deployment, testing, and utility scripts
+├── tests/                  # Python test files and test data
 ├── docs/                   # All documentation (moved from root)
-├── scripts/                # Deployment and utility scripts
 ├── config/                 # Configuration files
 └── .kiro/specs/           # Feature specifications
 ```
+
+📋 **Key Script Categories:**
+- **Testing**: `scripts/test-claude-4-1.sh`, `scripts/test-cross-partition.sh` (internet-based)
+- **VPN Testing**: `scripts/test-vpn-comprehensive.sh`, `scripts/test-end-to-end-routing.sh`
+- **Deployment**: `deploy-mvp.sh`, `scripts/deploy-complete-vpn-infrastructure.sh`
+- **Validation**: `scripts/validate-setup.sh`, `scripts/security-scan.sh`
+
+📖 **For complete script documentation, see [Scripts Reference Guide](docs/SCRIPTS_REFERENCE.md)**
 
 ## 🔧 **Configuration**
 
@@ -389,6 +397,7 @@ This is an educational/demonstration project showcasing cross-partition AI infer
 
 ### **🧪 Testing & Validation**
 - 🧪 [**Lambda Testing**](lambda/README.md) - Function testing and development
+- 🔧 [**Scripts Reference**](docs/SCRIPTS_REFERENCE.md) - Complete guide to all testing and deployment scripts
 - ✅ [**Test Scripts**](README.md#-usage-examples) - Comprehensive test suite
 - 🔍 [**Security Checklist**](docs/security-checklist.md) - Security validation guide
 
