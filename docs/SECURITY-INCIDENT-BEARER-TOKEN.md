@@ -16,7 +16,7 @@ A real bearer token was exposed in the repository in `scripts/update-bearer-toke
 
 ### **Exposed Token**
 ```
-[REDACTED-TOKEN]
+[REDACTED - Real bearer token removed for security]
 ```
 
 ### **Location**
