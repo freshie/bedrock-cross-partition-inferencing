@@ -1,0 +1,643 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Cost optimization strategies for VPN connectivity solution'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'prod'
+    Description: 'Environment name for resource tagging'
+  
+  ProjectName:
+    Type: String
+    Default: 'cross-partition-vpn'
+    Description: 'Project name for resource naming'
+
+  CostOptimizationLevel:
+    Type: String
+    Default: 'balanced'
+    AllowedValues: ['aggressive', 'balanced', 'performance']
+    Description: 'Cost optimization level'
+
+Conditions:
+  IsAggressiveOptimization: !Equals [!Ref CostOptimizationLevel, 'aggressive']
+  IsBalancedOptimization: !Equals [!Ref CostOptimizationLevel, 'balanced']
+  IsPerformanceOptimization: !Equals [!Ref CostOptimizationLevel, 'performance']
+
+Resources:
+  # Lambda function for cost monitoring and optimization
+  CostOptimizationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-cost-optimization'
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt CostOptimizationRole.Arn
+      Timeout: 900  # 15 minutes
+      MemorySize: 512
+      Environment:
+        Variables:
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
+          OPTIMIZATION_LEVEL: !Ref CostOptimizationLevel
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          from datetime import datetime, timedelta
+          from collections import defaultdict
+          
+          def lambda_handler(event, context):
+              """Analyze and optimize costs for VPN solution"""
+              
+              project_name = os.environ['PROJECT_NAME']
+              environment = os.environ['ENVIRONMENT']
+              optimization_level = os.environ['OPTIMIZATION_LEVEL']
+              
+              cost_analyzer = CostAnalyzer(project_name, environment)
+              
+              try:
+                  # Analyze current costs
+                  cost_analysis = cost_analyzer.analyze_costs()
+                  
+                  # Generate optimization recommendations
+                  recommendations = cost_analyzer.generate_recommendations(optimization_level)
+                  
+                  # Apply automatic optimizations if enabled
+                  applied_optimizations = []
+                  if event.get('apply_optimizations', False):
+                      applied_optimizations = cost_analyzer.apply_optimizations(recommendations)
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps({
+                          'cost_analysis': cost_analysis,
+                          'recommendations': recommendations,
+                          'applied_optimizations': applied_optimizations,
+                          'optimization_level': optimization_level,
+                          'timestamp': datetime.utcnow().isoformat()
+                      }, indent=2)
+                  }
+              
+              except Exception as e:
+                  print(f"Error in cost optimization: {str(e)}")
+                  return {
+                      'statusCode': 500,
+                      'body': json.dumps({'error': str(e)})
+                  }
+          
+          class CostAnalyzer:
+              """Analyze and optimize costs for VPN solution"""
+              
+              def __init__(self, project_name, environment):
+                  self.project_name = project_name
+                  self.environment = environment
+                  self.ce_client = boto3.client('ce')  # Cost Explorer
+                  self.ec2_client = boto3.client('ec2')
+                  self.lambda_client = boto3.client('lambda')
+                  self.cloudwatch_client = boto3.client('cloudwatch')
+              
+              def analyze_costs(self):
+                  """Analyze current costs for VPN solution"""
+                  
+                  end_date = datetime.utcnow().date()
+                  start_date = end_date - timedelta(days=30)
+                  
+                  cost_analysis = {
+                      'period': {
+                          'start': start_date.isoformat(),
+                          'end': end_date.isoformat()
+                      },
+                      'costs_by_service': {},
+                      'total_cost': 0,
+                      'cost_trends': {}
+                  }
+                  
+                  try:
+                      # Get costs by service
+                      response = self.ce_client.get_cost_and_usage(
+                          TimePeriod={
+                              'Start': start_date.isoformat(),
+                              'End': end_date.isoformat()
+                          },
+                          Granularity='MONTHLY',
+                          Metrics=['BlendedCost'],
+                          GroupBy=[
+                              {'Type': 'DIMENSION', 'Key': 'SERVICE'}
+                          ],
+                          Filter={
+                              'Dimensions': {
+                                  'Key': 'RESOURCE_ID',
+                                  'Values': [f'*{self.project_name}*'],
+                                  'MatchOptions': ['CONTAINS']
+                              }
+                          }
+                      )
+                      
+                      for result in response['ResultsByTime']:
+                          for group in result['Groups']:
+                              service = group['Keys'][0]
+                              cost = float(group['Metrics']['BlendedCost']['Amount'])
+                              cost_analysis['costs_by_service'][service] = cost
+                              cost_analysis['total_cost'] += cost
+                      
+                      # Analyze VPN-specific costs
+                      cost_analysis['vpn_costs'] = self._analyze_vpn_costs()
+                      
+                      # Analyze Lambda costs
+                      cost_analysis['lambda_costs'] = self._analyze_lambda_costs()
+                      
+                      # Analyze VPC endpoint costs
+                      cost_analysis['vpc_endpoint_costs'] = self._analyze_vpc_endpoint_costs()
+                      
+                      return cost_analysis
+                  
+                  except Exception as e:
+                      print(f"Error analyzing costs: {str(e)}")
+                      return cost_analysis
+              
+              def _analyze_vpn_costs(self):
+                  """Analyze VPN-specific costs"""
+                  
+                  vpn_costs = {
+                      'vpn_gateway_hours': 0,
+                      'data_transfer_gb': 0,
+                      'estimated_monthly_cost': 0
+                  }
+                  
+                  try:
+                      # Get VPN connections
+                      response = self.ec2_client.describe_vpn_connections(
+                          Filters=[
+                              {
+                                  'Name': 'tag:Project',
+                                  'Values': [self.project_name]
+                              }
+                          ]
+                      )
+                      
+                      vpn_connections = response['VpnConnections']
+                      
+                      # Calculate VPN Gateway costs (approximately $0.05 per hour)
+                      vpn_gateway_hourly_cost = 0.05
+                      hours_in_month = 24 * 30
+                      
+                      vpn_costs['vpn_gateway_hours'] = len(vpn_connections) * hours_in_month
+                      vpn_costs['estimated_monthly_cost'] = len(vpn_connections) * vpn_gateway_hourly_cost * hours_in_month
+                      
+                      # Estimate data transfer costs
+                      vpn_costs['data_transfer_gb'] = self._estimate_data_transfer()
+                      
+                      return vpn_costs
+                  
+                  except Exception as e:
+                      print(f"Error analyzing VPN costs: {str(e)}")
+                      return vpn_costs
+              
+              def _analyze_lambda_costs(self):
+                  """Analyze Lambda function costs"""
+                  
+                  lambda_costs = {
+                      'invocations': 0,
+                      'duration_ms': 0,
+                      'memory_mb': 0,
+                      'estimated_monthly_cost': 0
+                  }
+                  
+                  try:
+                      # Get Lambda functions
+                      functions = self._get_project_lambda_functions()
+                      
+                      for function_name in functions:
+                          # Get function configuration
+                          config = self.lambda_client.get_function_configuration(
+                              FunctionName=function_name
+                          )
+                          
+                          lambda_costs['memory_mb'] = max(lambda_costs['memory_mb'], config['MemorySize'])
+                          
+                          # Get CloudWatch metrics for invocations and duration
+                          metrics = self._get_lambda_metrics(function_name)
+                          lambda_costs['invocations'] += metrics.get('invocations', 0)
+                          lambda_costs['duration_ms'] += metrics.get('duration_ms', 0)
+                      
+                      # Calculate estimated costs
+                      # Lambda pricing: $0.0000166667 per GB-second
+                      gb_seconds = (lambda_costs['memory_mb'] / 1024) * (lambda_costs['duration_ms'] / 1000)
+                      lambda_costs['estimated_monthly_cost'] = gb_seconds * 0.0000166667
+                      
+                      return lambda_costs
+                  
+                  except Exception as e:
+                      print(f"Error analyzing Lambda costs: {str(e)}")
+                      return lambda_costs
+              
+              def _analyze_vpc_endpoint_costs(self):
+                  """Analyze VPC endpoint costs"""
+                  
+                  vpc_endpoint_costs = {
+                      'interface_endpoints': 0,
+                      'gateway_endpoints': 0,
+                      'data_processed_gb': 0,
+                      'estimated_monthly_cost': 0
+                  }
+                  
+                  try:
+                      # Get VPC endpoints
+                      response = self.ec2_client.describe_vpc_endpoints(
+                          Filters=[
+                              {
+                                  'Name': 'tag:Project',
+                                  'Values': [self.project_name]
+                              }
+                          ]
+                      )
+                      
+                      for endpoint in response['VpcEndpoints']:
+                          if endpoint['VpcEndpointType'] == 'Interface':
+                              vpc_endpoint_costs['interface_endpoints'] += 1
+                          elif endpoint['VpcEndpointType'] == 'Gateway':
+                              vpc_endpoint_costs['gateway_endpoints'] += 1
+                      
+                      # Calculate costs
+                      # Interface endpoints: ~$0.01 per hour per endpoint
+                      # Gateway endpoints: No hourly charge, only data processing
+                      hours_in_month = 24 * 30
+                      interface_cost = vpc_endpoint_costs['interface_endpoints'] * 0.01 * hours_in_month
+                      
+                      # Estimate data processing (simplified)
+                      vpc_endpoint_costs['data_processed_gb'] = self._estimate_vpc_endpoint_data()
+                      data_processing_cost = vpc_endpoint_costs['data_processed_gb'] * 0.01  # $0.01 per GB
+                      
+                      vpc_endpoint_costs['estimated_monthly_cost'] = interface_cost + data_processing_cost
+                      
+                      return vpc_endpoint_costs
+                  
+                  except Exception as e:
+                      print(f"Error analyzing VPC endpoint costs: {str(e)}")
+                      return vpc_endpoint_costs
+              
+              def generate_recommendations(self, optimization_level):
+                  """Generate cost optimization recommendations"""
+                  
+                  recommendations = []
+                  
+                  if optimization_level == 'aggressive':
+                      recommendations.extend(self._get_aggressive_recommendations())
+                  elif optimization_level == 'balanced':
+                      recommendations.extend(self._get_balanced_recommendations())
+                  else:  # performance
+                      recommendations.extend(self._get_performance_recommendations())
+                  
+                  return recommendations
+              
+              def _get_aggressive_recommendations(self):
+                  """Get aggressive cost optimization recommendations"""
+                  return [
+                      {
+                          'category': 'lambda',
+                          'recommendation': 'Reduce Lambda memory allocation',
+                          'description': 'Consider reducing Lambda memory from 1024MB to 512MB if performance allows',
+                          'estimated_savings': '$5-10/month',
+                          'risk': 'medium'
+                      },
+                      {
+                          'category': 'vpc_endpoints',
+                          'recommendation': 'Consolidate VPC endpoints',
+                          'description': 'Share VPC endpoints across multiple functions where possible',
+                          'estimated_savings': '$10-20/month',
+                          'risk': 'low'
+                      },
+                      {
+                          'category': 'monitoring',
+                          'recommendation': 'Reduce log retention',
+                          'description': 'Reduce CloudWatch log retention from 30 days to 7 days for non-critical logs',
+                          'estimated_savings': '$2-5/month',
+                          'risk': 'low'
+                      }
+                  ]
+              
+              def _get_balanced_recommendations(self):
+                  """Get balanced cost optimization recommendations"""
+                  return [
+                      {
+                          'category': 'lambda',
+                          'recommendation': 'Optimize Lambda timeout',
+                          'description': 'Review and optimize Lambda timeout settings to avoid unnecessary charges',
+                          'estimated_savings': '$3-8/month',
+                          'risk': 'low'
+                      },
+                      {
+                          'category': 'storage',
+                          'recommendation': 'Implement S3 lifecycle policies',
+                          'description': 'Move audit logs to cheaper storage classes after 30 days',
+                          'estimated_savings': '$5-15/month',
+                          'risk': 'low'
+                      },
+                      {
+                          'category': 'monitoring',
+                          'recommendation': 'Optimize CloudWatch metrics',
+                          'description': 'Review custom metrics and reduce frequency where appropriate',
+                          'estimated_savings': '$2-7/month',
+                          'risk': 'low'
+                      }
+                  ]
+              
+              def _get_performance_recommendations(self):
+                  """Get performance-focused recommendations"""
+                  return [
+                      {
+                          'category': 'lambda',
+                          'recommendation': 'Enable provisioned concurrency',
+                          'description': 'Consider provisioned concurrency for consistent performance',
+                          'estimated_cost_increase': '$20-50/month',
+                          'benefit': 'Eliminates cold starts'
+                      },
+                      {
+                          'category': 'vpc',
+                          'recommendation': 'Add redundant VPC endpoints',
+                          'description': 'Deploy VPC endpoints in multiple AZs for high availability',
+                          'estimated_cost_increase': '$15-30/month',
+                          'benefit': 'Improved availability and performance'
+                      }
+                  ]
+              
+              def apply_optimizations(self, recommendations):
+                  """Apply automatic optimizations"""
+                  applied = []
+                  
+                  for rec in recommendations:
+                      if rec.get('risk') == 'low' and 'estimated_savings' in rec:
+                          # Only apply low-risk optimizations automatically
+                          try:
+                              if rec['category'] == 'monitoring':
+                                  self._optimize_monitoring(rec)
+                                  applied.append(rec['recommendation'])
+                          except Exception as e:
+                              print(f"Failed to apply optimization {rec['recommendation']}: {str(e)}")
+                  
+                  return applied
+              
+              def _estimate_data_transfer(self):
+                  """Estimate VPN data transfer"""
+                  # Simplified estimation based on Lambda invocations
+                  return 10.0  # GB per month (placeholder)
+              
+              def _estimate_vpc_endpoint_data(self):
+                  """Estimate VPC endpoint data processing"""
+                  # Simplified estimation
+                  return 5.0  # GB per month (placeholder)
+              
+              def _get_project_lambda_functions(self):
+                  """Get Lambda functions for this project"""
+                  try:
+                      response = self.lambda_client.list_functions()
+                      return [
+                          func['FunctionName'] for func in response['Functions']
+                          if self.project_name in func['FunctionName']
+                      ]
+                  except Exception:
+                      return []
+              
+              def _get_lambda_metrics(self, function_name):
+                  """Get Lambda CloudWatch metrics"""
+                  try:
+                      end_time = datetime.utcnow()
+                      start_time = end_time - timedelta(days=30)
+                      
+                      # Get invocations
+                      invocations_response = self.cloudwatch_client.get_metric_statistics(
+                          Namespace='AWS/Lambda',
+                          MetricName='Invocations',
+                          Dimensions=[
+                              {'Name': 'FunctionName', 'Value': function_name}
+                          ],
+                          StartTime=start_time,
+                          EndTime=end_time,
+                          Period=86400,  # Daily
+                          Statistics=['Sum']
+                      )
+                      
+                      invocations = sum(point['Sum'] for point in invocations_response['Datapoints'])
+                      
+                      # Get duration
+                      duration_response = self.cloudwatch_client.get_metric_statistics(
+                          Namespace='AWS/Lambda',
+                          MetricName='Duration',
+                          Dimensions=[
+                              {'Name': 'FunctionName', 'Value': function_name}
+                          ],
+                          StartTime=start_time,
+                          EndTime=end_time,
+                          Period=86400,  # Daily
+                          Statistics=['Average']
+                      )
+                      
+                      avg_duration = sum(point['Average'] for point in duration_response['Datapoints']) / len(duration_response['Datapoints']) if duration_response['Datapoints'] else 0
+                      total_duration = invocations * avg_duration
+                      
+                      return {
+                          'invocations': invocations,
+                          'duration_ms': total_duration
+                      }
+                  
+                  except Exception as e:
+                      print(f"Error getting Lambda metrics: {str(e)}")
+                      return {'invocations': 0, 'duration_ms': 0}
+              
+              def _optimize_monitoring(self, recommendation):
+                  """Apply monitoring optimizations"""
+                  # Placeholder for monitoring optimizations
+                  print(f"Applied monitoring optimization: {recommendation['recommendation']}")
+
+  # IAM Role for cost optimization Lambda
+  CostOptimizationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CostOptimizationPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ce:GetCostAndUsage
+                  - ce:GetUsageReport
+                  - ce:GetReservationCoverage
+                  - ce:GetReservationPurchaseRecommendation
+                  - ce:GetReservationUtilization
+                  - ce:GetSavingsPlansUtilization
+                  - ce:ListCostCategoryDefinitions
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeVpnConnections
+                  - ec2:DescribeVpnGateways
+                  - ec2:DescribeVpcEndpoints
+                  - ec2:DescribeInstances
+                  - lambda:ListFunctions
+                  - lambda:GetFunction
+                  - lambda:GetFunctionConfiguration
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                  - logs:PutRetentionPolicy
+                Resource: '*'
+
+  # EventBridge rule for weekly cost analysis
+  WeeklyCostAnalysisSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: 'Run cost analysis weekly'
+      ScheduleExpression: 'cron(0 9 ? * MON *)'  # 9 AM UTC every Monday
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt CostOptimizationFunction.Arn
+          Id: 'WeeklyCostAnalysisTarget'
+          Input: '{"apply_optimizations": false}'
+
+  # Permission for EventBridge to invoke cost optimization Lambda
+  WeeklyCostAnalysisPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CostOptimizationFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt WeeklyCostAnalysisSchedule.Arn
+
+  # CloudWatch Dashboard for cost monitoring
+  CostMonitoringDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${ProjectName}-cost-monitoring'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${ProjectName}-cross-partition-inference" ],
+                  [ ".", "Duration", ".", "." ],
+                  [ ".", "Errors", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Cost Drivers",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/VPN", "TunnelState", "VpnId", "${ProjectName}-vpn-connection" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "VPN Usage",
+                "period": 300
+              }
+            },
+            {
+              "type": "log",
+              "x": 0,
+              "y": 6,
+              "width": 24,
+              "height": 6,
+              "properties": {
+                "query": "SOURCE '/aws/lambda/${ProjectName}-cost-optimization'\n| fields @timestamp, @message\n| filter @message like /cost_analysis/\n| sort @timestamp desc\n| limit 10",
+                "region": "${AWS::Region}",
+                "title": "Recent Cost Analysis Results",
+                "view": "table"
+              }
+            }
+          ]
+        }
+
+  # Budget for VPN solution
+  VPNBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: !Sub '${ProjectName}-monthly-budget'
+        BudgetLimit:
+          Amount: !If
+            - IsAggressiveOptimization
+            - 50
+            - !If
+              - IsBalancedOptimization
+              - 100
+              - 200
+          Unit: USD
+        TimeUnit: MONTHLY
+        BudgetType: COST
+        CostFilters:
+          TagKey:
+            - Project
+          TagValue:
+            - !Ref ProjectName
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: admin@example.com
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: admin@example.com
+
+Outputs:
+  CostOptimizationFunctionArn:
+    Description: 'Cost optimization Lambda function ARN'
+    Value: !GetAtt CostOptimizationFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-CostOptimizationFunctionArn'
+
+  CostMonitoringDashboardURL:
+    Description: 'Cost monitoring dashboard URL'
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${ProjectName}-cost-monitoring'
+    Export:
+      Name: !Sub '${AWS::StackName}-CostMonitoringDashboardURL'
+
+  BudgetName:
+    Description: 'Budget name for VPN solution'
+    Value: !Sub '${ProjectName}-monthly-budget'
+    Export:
+      Name: !Sub '${AWS::StackName}-BudgetName'
+
+  OptimizationLevel:
+    Description: 'Cost optimization level'
+    Value: !Ref CostOptimizationLevel
+    Export:
+      Name: !Sub '${AWS::StackName}-OptimizationLevel'

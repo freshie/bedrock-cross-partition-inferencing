@@ -1,0 +1,62 @@
+[
+  {
+    "ParameterKey": "ProjectName",
+    "ParameterValue": "dual-routing-api-gateway"
+  },
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "prod"
+  },
+  {
+    "ParameterKey": "FunctionName",
+    "ParameterValue": "dual-routing-api-gateway-prod-vpn-lambda"
+  },
+  {
+    "ParameterKey": "VpcId",
+    "ParameterValue": "vpc-0a82778bbc7b700ef"
+  },
+  {
+    "ParameterKey": "SubnetIds",
+    "ParameterValue": "subnet-0b8b0ec54e2531cea,subnet-06cee54a3206aa8bd"
+  },
+  {
+    "ParameterKey": "SecurityGroupId",
+    "ParameterValue": "sg-0959a4d69ef704c36"
+  },
+  {
+    "ParameterKey": "MemorySize",
+    "ParameterValue": "512"
+  },
+  {
+    "ParameterKey": "Timeout",
+    "ParameterValue": "30"
+  },
+  {
+    "ParameterKey": "S3Bucket",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "S3Key",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "CommercialCredentialsSecret",
+    "ParameterValue": "cross-partition-commercial-creds"
+  },
+  {
+    "ParameterKey": "RequestLogTable",
+    "ParameterValue": "cross-partition-requests"
+  },
+  {
+    "ParameterKey": "BedrockVpcEndpoint",
+    "ParameterValue": "vpce-06c11fda9465bc055"
+  },
+  {
+    "ParameterKey": "SecretsVpcEndpoint",
+    "ParameterValue": "vpce-0f565e403a87c34cf"
+  },
+  {
+    "ParameterKey": "DynamoDbVpcEndpoint",
+    "ParameterValue": "vpce-0608bf51447759eec"
+  }
+]

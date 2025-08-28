@@ -1,0 +1,696 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Network security controls for VPN connectivity - Security Groups, NACLs, VPC Flow Logs, and IPSec validation'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'prod'
+    Description: 'Environment name for resource tagging'
+  
+  ProjectName:
+    Type: String
+    Default: 'cross-partition-vpn'
+    Description: 'Project name for resource naming'
+
+  VPCStackName:
+    Type: String
+    Description: 'Name of the VPC stack to import resources from'
+
+  VPNGatewayStackName:
+    Type: String
+    Description: 'Name of the VPN Gateway stack to import resources from'
+
+  TrustedCIDRBlocks:
+    Type: CommaDelimitedList
+    Default: '10.0.0.0/16,172.16.0.0/16'
+    Description: 'Comma-delimited list of trusted CIDR blocks for cross-partition communication'
+
+  AllowedPorts:
+    Type: CommaDelimitedList
+    Default: '443,80'
+    Description: 'Comma-delimited list of allowed ports for cross-partition communication'
+
+Resources:
+  # Enhanced Security Group for Lambda functions with least privilege
+  EnhancedLambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Enhanced security group for Lambda functions with least privilege access'
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      SecurityGroupEgress:
+        # Allow HTTPS to VPC endpoints only
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: '10.0.3.0/24'  # VPC endpoints subnet
+          Description: 'HTTPS access to VPC endpoints'
+        # Allow cross-partition communication via VPN
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: '172.16.0.0/16'  # Commercial VPC
+          Description: 'HTTPS to Commercial partition via VPN'
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: '172.16.0.0/16'  # Commercial VPC
+          Description: 'HTTP to Commercial partition via VPN'
+        # DNS resolution
+        - IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: '0.0.0.0/0'
+          Description: 'DNS TCP queries'
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: '0.0.0.0/0'
+          Description: 'DNS UDP queries'
+        # NTP for time synchronization
+        - IpProtocol: udp
+          FromPort: 123
+          ToPort: 123
+          CidrIp: '0.0.0.0/0'
+          Description: 'NTP time synchronization'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-enhanced-lambda-sg'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: SecurityLevel
+          Value: 'high'
+
+  # Security Group for VPC endpoints with strict access control
+  EnhancedVPCEndpointsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Enhanced security group for VPC endpoints with strict access control'
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      SecurityGroupIngress:
+        # Allow HTTPS from Lambda security group only
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref EnhancedLambdaSecurityGroup
+          Description: 'HTTPS access from Lambda functions'
+        # Allow HTTPS from cross-partition traffic (via VPN)
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: '172.16.0.0/16'
+          Description: 'HTTPS from Commercial partition via VPN'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-enhanced-endpoints-sg'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: SecurityLevel
+          Value: 'high'
+
+  # Security Group for VPN Gateway with IPSec traffic
+  VPNGatewaySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Security group for VPN Gateway with IPSec traffic control'
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      SecurityGroupIngress:
+        # IPSec ESP protocol
+        - IpProtocol: 50
+          CidrIp: '0.0.0.0/0'
+          Description: 'IPSec ESP protocol'
+        # IPSec AH protocol
+        - IpProtocol: 51
+          CidrIp: '0.0.0.0/0'
+          Description: 'IPSec AH protocol'
+        # IKE/ISAKMP
+        - IpProtocol: udp
+          FromPort: 500
+          ToPort: 500
+          CidrIp: '0.0.0.0/0'
+          Description: 'IKE/ISAKMP'
+        # NAT-T
+        - IpProtocol: udp
+          FromPort: 4500
+          ToPort: 4500
+          CidrIp: '0.0.0.0/0'
+          Description: 'NAT-T for IPSec'
+      SecurityGroupEgress:
+        # Allow all outbound for VPN establishment
+        - IpProtocol: -1
+          CidrIp: '0.0.0.0/0'
+          Description: 'All outbound traffic for VPN'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-vpn-gateway-sg'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: SecurityLevel
+          Value: 'critical'
+
+  # Enhanced Network ACL for private subnet with strict rules
+  EnhancedPrivateNetworkAcl:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-enhanced-private-nacl'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: SecurityLevel
+          Value: 'high'
+
+  # Inbound rules for enhanced NACL
+  PrivateNaclInboundHTTPS:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref EnhancedPrivateNetworkAcl
+      RuleNumber: 100
+      Protocol: 6
+      RuleAction: allow
+      CidrBlock: '10.0.0.0/16'
+      PortRange:
+        From: 443
+        To: 443
+
+  PrivateNaclInboundCrossPartition:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref EnhancedPrivateNetworkAcl
+      RuleNumber: 110
+      Protocol: 6
+      RuleAction: allow
+      CidrBlock: '172.16.0.0/16'
+      PortRange:
+        From: 443
+        To: 443
+
+  PrivateNaclInboundEphemeral:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref EnhancedPrivateNetworkAcl
+      RuleNumber: 120
+      Protocol: 6
+      RuleAction: allow
+      CidrBlock: '0.0.0.0/0'
+      PortRange:
+        From: 1024
+        To: 65535
+
+  PrivateNaclInboundDNS:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref EnhancedPrivateNetworkAcl
+      RuleNumber: 130
+      Protocol: 17
+      RuleAction: allow
+      CidrBlock: '0.0.0.0/0'
+      PortRange:
+        From: 53
+        To: 53
+
+  # Outbound rules for enhanced NACL
+  PrivateNaclOutboundHTTPS:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref EnhancedPrivateNetworkAcl
+      RuleNumber: 100
+      Protocol: 6
+      RuleAction: allow
+      CidrBlock: '10.0.3.0/24'  # VPC endpoints
+      PortRange:
+        From: 443
+        To: 443
+
+  PrivateNaclOutboundCrossPartition:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref EnhancedPrivateNetworkAcl
+      RuleNumber: 110
+      Protocol: 6
+      RuleAction: allow
+      CidrBlock: '172.16.0.0/16'
+      PortRange:
+        From: 443
+        To: 443
+
+  PrivateNaclOutboundEphemeral:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref EnhancedPrivateNetworkAcl
+      RuleNumber: 120
+      Protocol: 6
+      RuleAction: allow
+      CidrBlock: '0.0.0.0/0'
+      PortRange:
+        From: 1024
+        To: 65535
+
+  PrivateNaclOutboundDNS:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref EnhancedPrivateNetworkAcl
+      RuleNumber: 130
+      Protocol: 17
+      RuleAction: allow
+      CidrBlock: '0.0.0.0/0'
+      PortRange:
+        From: 53
+        To: 53
+
+  PrivateNaclOutboundNTP:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref EnhancedPrivateNetworkAcl
+      RuleNumber: 140
+      Protocol: 17
+      RuleAction: allow
+      CidrBlock: '0.0.0.0/0'
+      PortRange:
+        From: 123
+        To: 123
+
+  # Associate enhanced NACL with private subnet
+  EnhancedPrivateSubnetNetworkAclAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId:
+        Fn::ImportValue: !Sub '${VPCStackName}-PrivateSubnetId'
+      NetworkAclId: !Ref EnhancedPrivateNetworkAcl
+
+  # Enhanced VPC Flow Logs with detailed configuration
+  EnhancedVPCFlowLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: vpc-flow-logs.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: EnhancedFlowLogsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetBucketAcl
+                  - s3:ListBucket
+                Resource: 
+                  - !Sub '${VPCFlowLogsS3Bucket}/*'
+                  - !Ref VPCFlowLogsS3Bucket
+
+  # S3 bucket for VPC Flow Logs storage
+  VPCFlowLogsS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-vpc-flow-logs-${AWS::AccountId}-${AWS::Region}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: FlowLogsRetention
+            Status: Enabled
+            ExpirationInDays: 90
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+              - TransitionInDays: 60
+                StorageClass: GLACIER
+      NotificationConfiguration:
+        CloudWatchConfigurations:
+          - Event: s3:ObjectCreated:*
+            CloudWatchConfiguration:
+              LogGroupName: !Ref VPCFlowLogsCloudWatchGroup
+
+  # CloudWatch Log Group for VPC Flow Logs
+  VPCFlowLogsCloudWatchGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/vpc/flowlogs/${ProjectName}-enhanced'
+      RetentionInDays: 30
+      KmsKeyId: !Ref VPCFlowLogsKMSKey
+
+  # KMS Key for VPC Flow Logs encryption
+  VPCFlowLogsKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: 'KMS key for VPC Flow Logs encryption'
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow VPC Flow Logs
+            Effect: Allow
+            Principal:
+              Service: vpc-flow-logs.amazonaws.com
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: '*'
+          - Sid: Allow CloudWatch Logs
+            Effect: Allow
+            Principal:
+              Service: logs.amazonaws.com
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: '*'
+
+  # KMS Key Alias
+  VPCFlowLogsKMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/${ProjectName}-vpc-flow-logs'
+      TargetKeyId: !Ref VPCFlowLogsKMSKey
+
+  # Enhanced VPC Flow Logs with custom format
+  EnhancedVPCFlowLogs:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      ResourceType: VPC
+      ResourceId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      TrafficType: ALL
+      LogDestinationType: cloud-watch-logs
+      LogGroupName: !Ref VPCFlowLogsCloudWatchGroup
+      DeliverLogsPermissionArn: !GetAtt EnhancedVPCFlowLogsRole.Arn
+      LogFormat: '${version} ${account-id} ${interface-id} ${srcaddr} ${dstaddr} ${srcport} ${dstport} ${protocol} ${packets} ${bytes} ${windowstart} ${windowend} ${action} ${flowlogstatus} ${vpc-id} ${subnet-id} ${instance-id} ${tcp-flags} ${type} ${pkt-srcaddr} ${pkt-dstaddr} ${region} ${az-id} ${sublocation-type} ${sublocation-id}'
+      MaxAggregationInterval: 60
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-enhanced-flow-logs'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: SecurityLevel
+          Value: 'high'
+
+  # Lambda function for IPSec encryption validation
+  IPSecValidationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-ipsec-validation'
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt IPSecValidationRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          VPN_CONNECTION_ID:
+            Fn::ImportValue: !Sub '${VPNGatewayStackName}-VPNConnectionId'
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import time
+          from datetime import datetime
+          
+          def lambda_handler(event, context):
+              """Validate IPSec encryption configuration and status"""
+              
+              ec2 = boto3.client('ec2')
+              cloudwatch = boto3.client('cloudwatch')
+              
+              vpn_connection_id = os.environ['VPN_CONNECTION_ID']
+              project_name = os.environ['PROJECT_NAME']
+              
+              validation_results = {
+                  'timestamp': datetime.utcnow().isoformat(),
+                  'vpn_connection_id': vpn_connection_id,
+                  'encryption_validation': {}
+              }
+              
+              try:
+                  # Get VPN connection details
+                  response = ec2.describe_vpn_connections(
+                      VpnConnectionIds=[vpn_connection_id]
+                  )
+                  
+                  vpn_connection = response['VpnConnections'][0]
+                  
+                  # Validate IPSec configuration
+                  encryption_validation = validate_ipsec_config(vpn_connection)
+                  validation_results['encryption_validation'] = encryption_validation
+                  
+                  # Send metrics to CloudWatch
+                  send_encryption_metrics(cloudwatch, encryption_validation, project_name)
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps(validation_results, indent=2)
+                  }
+              
+              except Exception as e:
+                  print(f"Error validating IPSec: {str(e)}")
+                  return {
+                      'statusCode': 500,
+                      'body': json.dumps({'error': str(e)})
+                  }
+          
+          def validate_ipsec_config(vpn_connection):
+              """Validate IPSec encryption configuration"""
+              
+              validation = {
+                  'encryption_algorithm': 'unknown',
+                  'integrity_algorithm': 'unknown',
+                  'dh_group': 'unknown',
+                  'pfs_enabled': False,
+                  'encryption_strength': 'unknown',
+                  'compliance_status': 'unknown'
+              }
+              
+              try:
+                  # Check tunnel options for encryption settings
+                  tunnel_options = vpn_connection.get('Options', {}).get('TunnelOptions', [])
+                  
+                  for i, tunnel in enumerate(tunnel_options):
+                      phase1_encryption = tunnel.get('Phase1EncryptionAlgorithms', [])
+                      phase1_integrity = tunnel.get('Phase1IntegrityAlgorithms', [])
+                      phase1_dh_groups = tunnel.get('Phase1DHGroupNumbers', [])
+                      
+                      phase2_encryption = tunnel.get('Phase2EncryptionAlgorithms', [])
+                      phase2_integrity = tunnel.get('Phase2IntegrityAlgorithms', [])
+                      phase2_dh_groups = tunnel.get('Phase2DHGroupNumbers', [])
+                      
+                      # Validate encryption strength
+                      if any('AES256' in str(alg) for alg in phase1_encryption + phase2_encryption):
+                          validation['encryption_algorithm'] = 'AES-256'
+                          validation['encryption_strength'] = 'strong'
+                      elif any('AES128' in str(alg) for alg in phase1_encryption + phase2_encryption):
+                          validation['encryption_algorithm'] = 'AES-128'
+                          validation['encryption_strength'] = 'medium'
+                      
+                      # Validate integrity algorithms
+                      if any('SHA256' in str(alg) for alg in phase1_integrity + phase2_integrity):
+                          validation['integrity_algorithm'] = 'SHA-256'
+                      elif any('SHA1' in str(alg) for alg in phase1_integrity + phase2_integrity):
+                          validation['integrity_algorithm'] = 'SHA-1'
+                      
+                      # Check DH groups
+                      dh_groups = phase1_dh_groups + phase2_dh_groups
+                      if dh_groups:
+                          validation['dh_group'] = f"Group-{max(dh_groups)}"
+                      
+                      # Check PFS
+                      validation['pfs_enabled'] = len(phase2_dh_groups) > 0
+                  
+                  # Determine compliance status
+                  if (validation['encryption_algorithm'] == 'AES-256' and 
+                      validation['integrity_algorithm'] == 'SHA-256' and
+                      validation['pfs_enabled']):
+                      validation['compliance_status'] = 'compliant'
+                  else:
+                      validation['compliance_status'] = 'non-compliant'
+                  
+                  return validation
+              
+              except Exception as e:
+                  print(f"Error validating IPSec config: {str(e)}")
+                  validation['error'] = str(e)
+                  return validation
+          
+          def send_encryption_metrics(cloudwatch, validation, project_name):
+              """Send encryption validation metrics to CloudWatch"""
+              
+              try:
+                  metrics = []
+                  
+                  # Compliance metric
+                  compliance_value = 1 if validation['compliance_status'] == 'compliant' else 0
+                  metrics.append({
+                      'MetricName': 'IPSecCompliance',
+                      'Value': compliance_value,
+                      'Unit': 'None',
+                      'Dimensions': [
+                          {'Name': 'Project', 'Value': project_name}
+                      ]
+                  })
+                  
+                  # Encryption strength metric
+                  strength_value = 2 if validation['encryption_strength'] == 'strong' else 1 if validation['encryption_strength'] == 'medium' else 0
+                  metrics.append({
+                      'MetricName': 'EncryptionStrength',
+                      'Value': strength_value,
+                      'Unit': 'None',
+                      'Dimensions': [
+                          {'Name': 'Project', 'Value': project_name}
+                      ]
+                  })
+                  
+                  # PFS enabled metric
+                  pfs_value = 1 if validation['pfs_enabled'] else 0
+                  metrics.append({
+                      'MetricName': 'PFSEnabled',
+                      'Value': pfs_value,
+                      'Unit': 'None',
+                      'Dimensions': [
+                          {'Name': 'Project', 'Value': project_name}
+                      ]
+                  })
+                  
+                  # Send metrics
+                  cloudwatch.put_metric_data(
+                      Namespace=f'VPN/{project_name}/Security',
+                      MetricData=[{
+                          'MetricName': metric['MetricName'],
+                          'Value': metric['Value'],
+                          'Unit': metric['Unit'],
+                          'Dimensions': metric['Dimensions'],
+                          'Timestamp': datetime.utcnow()
+                      } for metric in metrics]
+                  )
+                  
+              except Exception as e:
+                  print(f"Failed to send encryption metrics: {str(e)}")
+
+  # IAM Role for IPSec validation Lambda
+  IPSecValidationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: IPSecValidationPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeVpnConnections
+                  - ec2:DescribeVpnGateways
+                  - ec2:DescribeCustomerGateways
+                  - cloudwatch:PutMetricData
+                Resource: '*'
+
+  # EventBridge rule to trigger IPSec validation
+  IPSecValidationSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: 'Trigger IPSec validation every hour'
+      ScheduleExpression: 'rate(1 hour)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt IPSecValidationFunction.Arn
+          Id: 'IPSecValidationTarget'
+
+  # Permission for EventBridge to invoke IPSec validation Lambda
+  IPSecValidationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref IPSecValidationFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt IPSecValidationSchedule.Arn
+
+Outputs:
+  EnhancedLambdaSecurityGroupId:
+    Description: 'Enhanced Lambda security group ID'
+    Value: !Ref EnhancedLambdaSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-EnhancedLambdaSecurityGroupId'
+
+  EnhancedVPCEndpointsSecurityGroupId:
+    Description: 'Enhanced VPC endpoints security group ID'
+    Value: !Ref EnhancedVPCEndpointsSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-EnhancedVPCEndpointsSecurityGroupId'
+
+  VPNGatewaySecurityGroupId:
+    Description: 'VPN Gateway security group ID'
+    Value: !Ref VPNGatewaySecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-VPNGatewaySecurityGroupId'
+
+  EnhancedPrivateNetworkAclId:
+    Description: 'Enhanced private network ACL ID'
+    Value: !Ref EnhancedPrivateNetworkAcl
+    Export:
+      Name: !Sub '${AWS::StackName}-EnhancedPrivateNetworkAclId'
+
+  VPCFlowLogsS3BucketName:
+    Description: 'VPC Flow Logs S3 bucket name'
+    Value: !Ref VPCFlowLogsS3Bucket
+    Export:
+      Name: !Sub '${AWS::StackName}-VPCFlowLogsS3BucketName'
+
+  VPCFlowLogsCloudWatchGroupName:
+    Description: 'VPC Flow Logs CloudWatch log group name'
+    Value: !Ref VPCFlowLogsCloudWatchGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-VPCFlowLogsCloudWatchGroupName'
+
+  IPSecValidationFunctionArn:
+    Description: 'IPSec validation Lambda function ARN'
+    Value: !GetAtt IPSecValidationFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-IPSecValidationFunctionArn'
+
+  VPCFlowLogsKMSKeyId:
+    Description: 'VPC Flow Logs KMS key ID'
+    Value: !Ref VPCFlowLogsKMSKey
+    Export:
+      Name: !Sub '${AWS::StackName}-VPCFlowLogsKMSKeyId'

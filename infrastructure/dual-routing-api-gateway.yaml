@@ -1,0 +1,575 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'API Gateway resource structure for dual routing (Internet + VPN paths)'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: 'dual-routing-api-gateway'
+    Description: 'Project name for resource naming'
+  
+  Environment:
+    Type: String
+    Default: 'prod'
+    AllowedValues: ['dev', 'stage', 'prod']
+    Description: 'Environment name for resource tagging'
+  
+  # Existing API Gateway (if extending existing)
+  ExistingApiGatewayId:
+    Type: String
+    Description: 'Existing API Gateway ID to extend (optional - leave empty to create new)'
+    Default: ''
+  
+  # Lambda Function ARNs
+  InternetLambdaFunctionArn:
+    Type: String
+    Description: 'ARN of the Internet Lambda function'
+  
+  VPNLambdaFunctionArn:
+    Type: String
+    Description: 'ARN of the VPN Lambda function'
+  
+  # API Gateway Configuration
+  ApiGatewayName:
+    Type: String
+    Default: 'dual-routing-bedrock-api'
+    Description: 'Name for the API Gateway (used only if creating new)'
+  
+  ApiGatewayDescription:
+    Type: String
+    Default: 'Dual routing Bedrock inference API with Internet and VPN paths'
+    Description: 'Description for the API Gateway'
+  
+  # API Key Configuration
+  CreateApiKey:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: 'Whether to create an API key for authentication'
+  
+  ApiKeyName:
+    Type: String
+    Default: 'dual-routing-bedrock-key'
+    Description: 'Name for the API key'
+  
+  # Usage Plan Configuration
+  ThrottleBurstLimit:
+    Type: Number
+    Default: 100
+    Description: 'API Gateway throttle burst limit'
+  
+  ThrottleRateLimit:
+    Type: Number
+    Default: 50
+    Description: 'API Gateway throttle rate limit (requests per second)'
+  
+  QuotaLimit:
+    Type: Number
+    Default: 10000
+    Description: 'API Gateway quota limit (requests per day)'
+
+Conditions:
+  CreateNewApiGateway: !Equals [!Ref ExistingApiGatewayId, '']
+  ExtendExistingApiGateway: !Not [!Equals [!Ref ExistingApiGatewayId, '']]
+  ShouldCreateApiKey: !Equals [!Ref CreateApiKey, 'true']
+
+Resources:
+  # New API Gateway (if not extending existing)
+  DualRoutingApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Condition: CreateNewApiGateway
+    Properties:
+      Name: !Sub '${ProjectName}-${ApiGatewayName}-${Environment}'
+      Description: !Ref ApiGatewayDescription
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Policy:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: 'execute-api:Invoke'
+            Resource: '*'
+            Condition:
+              IpAddress:
+                'aws:SourceIp':
+                  - '10.0.0.0/8'
+                  - '172.16.0.0/12'
+                  - '192.168.0.0/16'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-api-gateway-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Component
+          Value: 'dual-routing-api-gateway'
+
+  # Root v1 Resource
+  V1Resource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ParentId: !If 
+        - CreateNewApiGateway
+        - !GetAtt DualRoutingApiGateway.RootResourceId
+        - !Sub '{{resolve:ssm:/api-gateway/${ExistingApiGatewayId}/root-resource-id}}'
+      PathPart: 'v1'
+
+  # Internet Routing Resources (/v1/bedrock/invoke-model)
+  BedrockResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ParentId: !Ref V1Resource
+      PathPart: 'bedrock'
+
+  BedrockInvokeModelResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ParentId: !Ref BedrockResource
+      PathPart: 'invoke-model'
+
+  # VPN Routing Resources (/v1/vpn/bedrock/invoke-model)
+  VPNResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ParentId: !Ref V1Resource
+      PathPart: 'vpn'
+
+  VPNBedrockResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ParentId: !Ref VPNResource
+      PathPart: 'bedrock'
+
+  VPNBedrockInvokeModelResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ParentId: !Ref VPNBedrockResource
+      PathPart: 'invoke-model'
+
+  # Models Resource for both routing methods
+  BedrockModelsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ParentId: !Ref BedrockResource
+      PathPart: 'models'
+
+  VPNBedrockModelsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ParentId: !Ref VPNBedrockResource
+      PathPart: 'models'
+
+  # Internet Routing Methods
+  InternetBedrockPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ResourceId: !Ref BedrockInvokeModelResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      ApiKeyRequired: !If [ShouldCreateApiKey, true, false]
+      RequestParameters:
+        method.request.header.Content-Type: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 
+          - 'arn:aws-us-gov:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations'
+          - LambdaArn: !Ref InternetLambdaFunctionArn
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  InternetBedrockGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ResourceId: !Ref BedrockInvokeModelResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      ApiKeyRequired: !If [ShouldCreateApiKey, true, false]
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 
+          - 'arn:aws-us-gov:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations'
+          - LambdaArn: !Ref InternetLambdaFunctionArn
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  InternetBedrockModelsGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ResourceId: !Ref BedrockModelsResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      ApiKeyRequired: !If [ShouldCreateApiKey, true, false]
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 
+          - 'arn:aws-us-gov:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations'
+          - LambdaArn: !Ref InternetLambdaFunctionArn
+
+  # VPN Routing Methods
+  VPNBedrockPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ResourceId: !Ref VPNBedrockInvokeModelResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      ApiKeyRequired: !If [ShouldCreateApiKey, true, false]
+      RequestParameters:
+        method.request.header.Content-Type: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 
+          - 'arn:aws-us-gov:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations'
+          - LambdaArn: !Ref VPNLambdaFunctionArn
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  VPNBedrockGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ResourceId: !Ref VPNBedrockInvokeModelResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      ApiKeyRequired: !If [ShouldCreateApiKey, true, false]
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 
+          - 'arn:aws-us-gov:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations'
+          - LambdaArn: !Ref VPNLambdaFunctionArn
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  VPNBedrockModelsGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ResourceId: !Ref VPNBedrockModelsResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      ApiKeyRequired: !If [ShouldCreateApiKey, true, false]
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 
+          - 'arn:aws-us-gov:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations'
+          - LambdaArn: !Ref VPNLambdaFunctionArn
+
+  # OPTIONS methods for CORS support
+  InternetBedrockOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ResourceId: !Ref BedrockInvokeModelResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  VPNBedrockOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      ResourceId: !Ref VPNBedrockInvokeModelResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  # Lambda Permissions for API Gateway
+  InternetLambdaApiGatewayPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref InternetLambdaFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 
+        - 'arn:aws-us-gov:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/*'
+        - ApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+
+  VPNLambdaApiGatewayPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref VPNLambdaFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 
+        - 'arn:aws-us-gov:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/*'
+        - ApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+
+  # API Deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - InternetBedrockPostMethod
+      - InternetBedrockGetMethod
+      - InternetBedrockModelsGetMethod
+      - VPNBedrockPostMethod
+      - VPNBedrockGetMethod
+      - VPNBedrockModelsGetMethod
+      - InternetBedrockOptionsMethod
+      - VPNBedrockOptionsMethod
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      Description: !Sub 'Deployment for dual routing API - ${Environment}'
+
+  # API Stage
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+      DeploymentId: !Ref ApiDeployment
+      StageName: !Ref Environment
+      Description: !Sub 'Stage for dual routing API - ${Environment}'
+      ThrottleSettings:
+        BurstLimit: !Ref ThrottleBurstLimit
+        RateLimit: !Ref ThrottleRateLimit
+      MethodSettings:
+        - ResourcePath: '/*/*'
+          HttpMethod: '*'
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
+          ThrottlingBurstLimit: !Ref ThrottleBurstLimit
+          ThrottlingRateLimit: !Ref ThrottleRateLimit
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
+        Format: !Sub |
+          {
+            "requestId": "$context.requestId",
+            "requestTime": "$context.requestTime",
+            "httpMethod": "$context.httpMethod",
+            "path": "$context.path",
+            "resourcePath": "$context.resourcePath",
+            "status": "$context.status",
+            "responseLength": "$context.responseLength",
+            "responseLatency": "$context.responseLatency",
+            "xrayTraceId": "$context.xrayTraceId",
+            "integrationRequestId": "$context.integration.requestId",
+            "functionResponseStatus": "$context.integration.status",
+            "integrationLatency": "$context.integration.latency",
+            "integrationServiceStatus": "$context.integration.integrationStatus",
+            "ip": "$context.identity.sourceIp",
+            "userAgent": "$context.identity.userAgent",
+            "principalId": "$context.authorizer.principalId"
+          }
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-api-stage-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # CloudWatch Log Group for API Gateway
+  ApiGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/${ProjectName}-dual-routing-${Environment}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-api-gateway-logs-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # API Key (if enabled)
+  DualRoutingApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Condition: ShouldCreateApiKey
+    Properties:
+      Name: !Sub '${ProjectName}-${ApiKeyName}-${Environment}'
+      Description: 'API Key for dual routing Bedrock API'
+      Enabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-api-key-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Usage Plan
+  DualRoutingUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Condition: ShouldCreateApiKey
+    Properties:
+      UsagePlanName: !Sub '${ProjectName}-usage-plan-${Environment}'
+      Description: 'Usage plan for dual routing Bedrock API'
+      ApiStages:
+        - ApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+          Stage: !Ref ApiStage
+      Throttle:
+        BurstLimit: !Ref ThrottleBurstLimit
+        RateLimit: !Ref ThrottleRateLimit
+      Quota:
+        Limit: !Ref QuotaLimit
+        Period: DAY
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-usage-plan-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Usage Plan Key
+  DualRoutingUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Condition: ShouldCreateApiKey
+    Properties:
+      KeyId: !Ref DualRoutingApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref DualRoutingUsagePlan
+
+Outputs:
+  ApiGatewayId:
+    Description: 'API Gateway ID'
+    Value: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+    Export:
+      Name: !Sub '${ProjectName}-api-gateway-id-${Environment}'
+
+  ApiGatewayUrl:
+    Description: 'API Gateway URL'
+    Value: !Sub 
+      - 'https://${ApiId}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+      - ApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+    Export:
+      Name: !Sub '${ProjectName}-api-gateway-url-${Environment}'
+
+  InternetEndpoint:
+    Description: 'Internet routing endpoint'
+    Value: !Sub 
+      - 'https://${ApiId}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/v1/bedrock/invoke-model'
+      - ApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+    Export:
+      Name: !Sub '${ProjectName}-internet-endpoint-${Environment}'
+
+  VPNEndpoint:
+    Description: 'VPN routing endpoint'
+    Value: !Sub 
+      - 'https://${ApiId}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/v1/vpn/bedrock/invoke-model'
+      - ApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+    Export:
+      Name: !Sub '${ProjectName}-vpn-endpoint-${Environment}'
+
+  InternetModelsEndpoint:
+    Description: 'Internet routing models endpoint'
+    Value: !Sub 
+      - 'https://${ApiId}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/v1/bedrock/models'
+      - ApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+    Export:
+      Name: !Sub '${ProjectName}-internet-models-endpoint-${Environment}'
+
+  VPNModelsEndpoint:
+    Description: 'VPN routing models endpoint'
+    Value: !Sub 
+      - 'https://${ApiId}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/v1/vpn/bedrock/models'
+      - ApiId: !If [CreateNewApiGateway, !Ref DualRoutingApiGateway, !Ref ExistingApiGatewayId]
+    Export:
+      Name: !Sub '${ProjectName}-vpn-models-endpoint-${Environment}'
+
+  ApiKeyId:
+    Condition: ShouldCreateApiKey
+    Description: 'API Key ID'
+    Value: !Ref DualRoutingApiKey
+    Export:
+      Name: !Sub '${ProjectName}-api-key-id-${Environment}'
+
+  ApiKeyValue:
+    Condition: ShouldCreateApiKey
+    Description: 'API Key Value'
+    Value: !GetAtt DualRoutingApiKey.Value
+    Export:
+      Name: !Sub '${ProjectName}-api-key-value-${Environment}'
+
+  UsagePlanId:
+    Condition: ShouldCreateApiKey
+    Description: 'Usage Plan ID'
+    Value: !Ref DualRoutingUsagePlan
+    Export:
+      Name: !Sub '${ProjectName}-usage-plan-id-${Environment}'

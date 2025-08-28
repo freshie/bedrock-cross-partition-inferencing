@@ -1,0 +1,369 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'VPC endpoints for Commercial partition - Bedrock, CloudWatch Logs, CloudWatch Metrics'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'prod'
+    Description: 'Environment name for resource tagging'
+  
+  ProjectName:
+    Type: String
+    Default: 'cross-partition-vpn'
+    Description: 'Project name for resource naming'
+
+  VPCStackName:
+    Type: String
+    Default: 'cross-partition-vpn-commercial-vpc'
+    Description: 'Name of the VPC stack to import resources from'
+
+Resources:
+  # Bedrock Runtime VPC Endpoint
+  BedrockRuntimeEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.bedrock-runtime'
+      VpcEndpointType: Interface
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSubnetId'
+      SecurityGroupIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSecurityGroupId'
+      PrivateDnsEnabled: true
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - bedrock:InvokeModel
+              - bedrock:InvokeModelWithResponseStream
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'aws:PrincipalTag/Project': !Ref ProjectName
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - bedrock:InvokeModel
+              - bedrock:InvokeModelWithResponseStream
+            Resource: '*'
+            Condition:
+              IpAddress:
+                'aws:SourceIp': '10.0.0.0/16'  # Allow from GovCloud VPC
+      RouteTableIds: []
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-commercial-bedrock-runtime-endpoint'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: 'bedrock-runtime'
+
+  # Bedrock Agent Runtime VPC Endpoint (for agent capabilities)
+  BedrockAgentRuntimeEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.bedrock-agent-runtime'
+      VpcEndpointType: Interface
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSubnetId'
+      SecurityGroupIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSecurityGroupId'
+      PrivateDnsEnabled: true
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - bedrock:InvokeAgent
+              - bedrock:Retrieve
+              - bedrock:RetrieveAndGenerate
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'aws:PrincipalTag/Project': !Ref ProjectName
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - bedrock:InvokeAgent
+              - bedrock:Retrieve
+              - bedrock:RetrieveAndGenerate
+            Resource: '*'
+            Condition:
+              IpAddress:
+                'aws:SourceIp': '10.0.0.0/16'  # Allow from GovCloud VPC
+      RouteTableIds: []
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-commercial-bedrock-agent-runtime-endpoint'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: 'bedrock-agent-runtime'
+
+  # Bedrock Service VPC Endpoint (for model management)
+  BedrockEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.bedrock'
+      VpcEndpointType: Interface
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSubnetId'
+      SecurityGroupIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSecurityGroupId'
+      PrivateDnsEnabled: true
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - bedrock:GetFoundationModel
+              - bedrock:ListFoundationModels
+              - bedrock:GetModelInvocationLoggingConfiguration
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'aws:PrincipalTag/Project': !Ref ProjectName
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - bedrock:GetFoundationModel
+              - bedrock:ListFoundationModels
+              - bedrock:GetModelInvocationLoggingConfiguration
+            Resource: '*'
+            Condition:
+              IpAddress:
+                'aws:SourceIp': '10.0.0.0/16'  # Allow from GovCloud VPC
+      RouteTableIds: []
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-commercial-bedrock-endpoint'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: 'bedrock'
+
+  # CloudWatch Logs VPC Endpoint
+  CloudWatchLogsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.logs'
+      VpcEndpointType: Interface
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSubnetId'
+      SecurityGroupIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSecurityGroupId'
+      PrivateDnsEnabled: true
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              - logs:DescribeLogGroups
+              - logs:DescribeLogStreams
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'aws:PrincipalTag/Project': !Ref ProjectName
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              - logs:DescribeLogGroups
+              - logs:DescribeLogStreams
+            Resource: '*'
+            Condition:
+              IpAddress:
+                'aws:SourceIp': '10.0.0.0/16'  # Allow from GovCloud VPC
+      RouteTableIds: []
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-commercial-logs-endpoint'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: 'logs'
+
+  # CloudWatch Metrics VPC Endpoint
+  CloudWatchMetricsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.monitoring'
+      VpcEndpointType: Interface
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSubnetId'
+      SecurityGroupIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSecurityGroupId'
+      PrivateDnsEnabled: true
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - cloudwatch:PutMetricData
+              - cloudwatch:GetMetricStatistics
+              - cloudwatch:ListMetrics
+              - cloudwatch:GetMetricData
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'aws:PrincipalTag/Project': !Ref ProjectName
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - cloudwatch:PutMetricData
+              - cloudwatch:GetMetricStatistics
+              - cloudwatch:ListMetrics
+              - cloudwatch:GetMetricData
+            Resource: '*'
+            Condition:
+              IpAddress:
+                'aws:SourceIp': '10.0.0.0/16'  # Allow from GovCloud VPC
+      RouteTableIds: []
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-commercial-metrics-endpoint'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: 'monitoring'
+
+  # STS VPC Endpoint (for IAM role assumptions)
+  STSEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCId'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.sts'
+      VpcEndpointType: Interface
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSubnetId'
+      SecurityGroupIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-VPCEndpointsSecurityGroupId'
+      PrivateDnsEnabled: true
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - sts:AssumeRole
+              - sts:GetCallerIdentity
+              - sts:GetSessionToken
+            Resource: '*'
+            Condition:
+              IpAddress:
+                'aws:SourceIp': '10.0.0.0/16'  # Allow from GovCloud VPC
+      RouteTableIds: []
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-commercial-sts-endpoint'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: 'sts'
+
+Outputs:
+  BedrockRuntimeEndpointId:
+    Description: 'VPC Endpoint ID for Bedrock Runtime'
+    Value: !Ref BedrockRuntimeEndpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-BedrockRuntimeEndpointId'
+
+  BedrockRuntimeEndpointDNS:
+    Description: 'DNS name for Bedrock Runtime VPC endpoint'
+    Value: !Select [1, !Split [':', !Select [0, !GetAtt BedrockRuntimeEndpoint.DnsEntries]]]
+    Export:
+      Name: !Sub '${AWS::StackName}-BedrockRuntimeEndpointDNS'
+
+  BedrockAgentRuntimeEndpointId:
+    Description: 'VPC Endpoint ID for Bedrock Agent Runtime'
+    Value: !Ref BedrockAgentRuntimeEndpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-BedrockAgentRuntimeEndpointId'
+
+  BedrockAgentRuntimeEndpointDNS:
+    Description: 'DNS name for Bedrock Agent Runtime VPC endpoint'
+    Value: !Select [1, !Split [':', !Select [0, !GetAtt BedrockAgentRuntimeEndpoint.DnsEntries]]]
+    Export:
+      Name: !Sub '${AWS::StackName}-BedrockAgentRuntimeEndpointDNS'
+
+  BedrockEndpointId:
+    Description: 'VPC Endpoint ID for Bedrock Service'
+    Value: !Ref BedrockEndpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-BedrockEndpointId'
+
+  BedrockEndpointDNS:
+    Description: 'DNS name for Bedrock Service VPC endpoint'
+    Value: !Select [1, !Split [':', !Select [0, !GetAtt BedrockEndpoint.DnsEntries]]]
+    Export:
+      Name: !Sub '${AWS::StackName}-BedrockEndpointDNS'
+
+  CloudWatchLogsEndpointId:
+    Description: 'VPC Endpoint ID for CloudWatch Logs'
+    Value: !Ref CloudWatchLogsEndpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudWatchLogsEndpointId'
+
+  CloudWatchLogsEndpointDNS:
+    Description: 'DNS name for CloudWatch Logs VPC endpoint'
+    Value: !Select [1, !Split [':', !Select [0, !GetAtt CloudWatchLogsEndpoint.DnsEntries]]]
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudWatchLogsEndpointDNS'
+
+  CloudWatchMetricsEndpointId:
+    Description: 'VPC Endpoint ID for CloudWatch Metrics'
+    Value: !Ref CloudWatchMetricsEndpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudWatchMetricsEndpointId'
+
+  CloudWatchMetricsEndpointDNS:
+    Description: 'DNS name for CloudWatch Metrics VPC endpoint'
+    Value: !Select [1, !Split [':', !Select [0, !GetAtt CloudWatchMetricsEndpoint.DnsEntries]]]
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudWatchMetricsEndpointDNS'
+
+  STSEndpointId:
+    Description: 'VPC Endpoint ID for STS'
+    Value: !Ref STSEndpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-STSEndpointId'
+
+  STSEndpointDNS:
+    Description: 'DNS name for STS VPC endpoint'
+    Value: !Select [1, !Split [':', !Select [0, !GetAtt STSEndpoint.DnsEntries]]]
+    Export:
+      Name: !Sub '${AWS::StackName}-STSEndpointDNS'
+
+  # Environment variables for cross-partition access configuration
+  VPCEndpointConfiguration:
+    Description: 'VPC endpoint configuration for cross-partition access'
+    Value: !Sub |
+      VPC_ENDPOINT_BEDROCK_RUNTIME=https://${BedrockRuntimeEndpoint}.bedrock-runtime.${AWS::Region}.amazonaws.com
+      VPC_ENDPOINT_BEDROCK_AGENT_RUNTIME=https://${BedrockAgentRuntimeEndpoint}.bedrock-agent-runtime.${AWS::Region}.amazonaws.com
+      VPC_ENDPOINT_BEDROCK=https://${BedrockEndpoint}.bedrock.${AWS::Region}.amazonaws.com
+      VPC_ENDPOINT_LOGS=https://${CloudWatchLogsEndpoint}.logs.${AWS::Region}.amazonaws.com
+      VPC_ENDPOINT_MONITORING=https://${CloudWatchMetricsEndpoint}.monitoring.${AWS::Region}.amazonaws.com
+      VPC_ENDPOINT_STS=https://${STSEndpoint}.sts.${AWS::Region}.amazonaws.com
+    Export:
+      Name: !Sub '${AWS::StackName}-VPCEndpointConfiguration'

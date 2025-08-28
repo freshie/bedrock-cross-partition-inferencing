@@ -1,0 +1,55 @@
+{
+  "test_suite": "internet_routing",
+  "total_tests": 5,
+  "successful_tests": 0,
+  "failed_tests": 5,
+  "success_rate": 0.0,
+  "start_time": "2025-08-27T19:31:05.392512",
+  "end_time": "2025-08-27T19:31:05.511230",
+  "test_results": [
+    {
+      "test_name": "api_gateway_endpoint",
+      "routing_method": "internet",
+      "start_time": "2025-08-27T19:31:05.393068",
+      "success": false,
+      "response_time_ms": null,
+      "error": "HTTPSConnectionPool(host='redacted_endpoint.execute-api.us-gov-west-1.amazonaws.com', port=443): Max retries exceeded with url: /v1/health (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x1065afbb0>: Failed to establish a new connection: [Errno 8] nodename nor servname provided, or not known'))",
+      "end_time": "2025-08-27T19:31:05.499584"
+    },
+    {
+      "test_name": "internet_bedrock_inference",
+      "routing_method": "internet",
+      "start_time": "2025-08-27T19:31:05.499593",
+      "success": false,
+      "response_time_ms": null,
+      "error": "HTTPSConnectionPool(host='redacted_endpoint.execute-api.us-gov-west-1.amazonaws.com', port=443): Max retries exceeded with url: /v1/invoke (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x1065af5e0>: Failed to establish a new connection: [Errno 8] nodename nor servname provided, or not known'))",
+      "end_time": "2025-08-27T19:31:05.501384"
+    },
+    {
+      "test_name": "internet_authentication",
+      "routing_method": "internet",
+      "start_time": "2025-08-27T19:31:05.501390",
+      "success": false,
+      "error": "HTTPSConnectionPool(host='redacted_endpoint.execute-api.us-gov-west-1.amazonaws.com', port=443): Max retries exceeded with url: /v1/invoke (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x1065afb20>: Failed to establish a new connection: [Errno 8] nodename nor servname provided, or not known'))",
+      "end_time": "2025-08-27T19:31:05.502885"
+    },
+    {
+      "test_name": "internet_audit_trail",
+      "routing_method": "internet",
+      "start_time": "2025-08-27T19:31:05.502892",
+      "success": false,
+      "error": "HTTPSConnectionPool(host='redacted_endpoint.execute-api.us-gov-west-1.amazonaws.com', port=443): Max retries exceeded with url: /v1/invoke (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x1065afb50>: Failed to establish a new connection: [Errno 8] nodename nor servname provided, or not known'))",
+      "end_time": "2025-08-27T19:31:05.504674"
+    },
+    {
+      "test_name": "internet_performance_baseline",
+      "routing_method": "internet",
+      "start_time": "2025-08-27T19:31:05.504680",
+      "success": false,
+      "response_times": [],
+      "average_response_time": null,
+      "error": "No successful requests",
+      "end_time": "2025-08-27T19:31:05.511224"
+    }
+  ]
+}

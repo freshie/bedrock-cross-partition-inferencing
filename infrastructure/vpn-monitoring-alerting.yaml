@@ -1,0 +1,574 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Comprehensive monitoring and alerting for VPN connectivity solution'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'prod'
+    Description: 'Environment name for resource tagging'
+  
+  ProjectName:
+    Type: String
+    Default: 'cross-partition-vpn'
+    Description: 'Project name for resource naming'
+
+  AlertEmail:
+    Type: String
+    Description: 'Email address for critical alerts'
+    Default: 'admin@example.com'
+
+  SlackWebhookUrl:
+    Type: String
+    Description: 'Slack webhook URL for notifications (optional)'
+    Default: ''
+    NoEcho: true
+
+Resources:
+  # SNS Topics for different alert severities
+  CriticalAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-critical-alerts'
+      DisplayName: 'VPN Critical Alerts'
+      KmsMasterKeyId: alias/aws/sns
+
+  WarningAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-warning-alerts'
+      DisplayName: 'VPN Warning Alerts'
+      KmsMasterKeyId: alias/aws/sns
+
+  InfoAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-info-alerts'
+      DisplayName: 'VPN Info Alerts'
+      KmsMasterKeyId: alias/aws/sns
+
+  # Email subscription for critical alerts
+  CriticalAlertsEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      TopicArn: !Ref CriticalAlertsTopic
+      Endpoint: !Ref AlertEmail
+
+  # Email subscription for warning alerts
+  WarningAlertsEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      TopicArn: !Ref WarningAlertsTopic
+      Endpoint: !Ref AlertEmail
+
+  # Lambda function for Slack notifications
+  SlackNotificationFunction:
+    Type: AWS::Lambda::Function
+    Condition: HasSlackWebhook
+    Properties:
+      FunctionName: !Sub '${ProjectName}-slack-notifications'
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt SlackNotificationRole.Arn
+      Timeout: 30
+      Environment:
+        Variables:
+          SLACK_WEBHOOK_URL: !Ref SlackWebhookUrl
+          PROJECT_NAME: !Ref ProjectName
+      Code:
+        ZipFile: |
+          import json
+          import urllib3
+          import os
+          from datetime import datetime
+          
+          def lambda_handler(event, context):
+              webhook_url = os.environ['SLACK_WEBHOOK_URL']
+              project_name = os.environ['PROJECT_NAME']
+              
+              if not webhook_url:
+                  return {'statusCode': 200, 'body': 'No webhook URL configured'}
+              
+              try:
+                  # Parse SNS message
+                  message = json.loads(event['Records'][0]['Sns']['Message'])
+                  subject = event['Records'][0]['Sns']['Subject']
+                  
+                  # Determine alert color based on alarm state
+                  alarm_state = message.get('NewStateValue', 'UNKNOWN')
+                  color_map = {
+                      'ALARM': '#FF0000',      # Red
+                      'OK': '#00FF00',         # Green
+                      'INSUFFICIENT_DATA': '#FFA500'  # Orange
+                  }
+                  color = color_map.get(alarm_state, '#808080')
+                  
+                  # Create Slack message
+                  slack_message = {
+                      'attachments': [{
+                          'color': color,
+                          'title': f'{project_name} Alert: {subject}',
+                          'text': message.get('AlarmDescription', 'No description'),
+                          'fields': [
+                              {
+                                  'title': 'Alarm Name',
+                                  'value': message.get('AlarmName', 'Unknown'),
+                                  'short': True
+                              },
+                              {
+                                  'title': 'State',
+                                  'value': alarm_state,
+                                  'short': True
+                              },
+                              {
+                                  'title': 'Reason',
+                                  'value': message.get('NewStateReason', 'No reason provided'),
+                                  'short': False
+                              },
+                              {
+                                  'title': 'Timestamp',
+                                  'value': message.get('StateChangeTime', datetime.utcnow().isoformat()),
+                                  'short': True
+                              }
+                          ]
+                      }]
+                  }
+                  
+                  # Send to Slack
+                  http = urllib3.PoolManager()
+                  response = http.request(
+                      'POST',
+                      webhook_url,
+                      body=json.dumps(slack_message),
+                      headers={'Content-Type': 'application/json'}
+                  )
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': f'Slack notification sent: {response.status}'
+                  }
+              
+              except Exception as e:
+                  print(f'Error sending Slack notification: {str(e)}')
+                  return {
+                      'statusCode': 500,
+                      'body': f'Error: {str(e)}'
+                  }
+
+  # IAM Role for Slack notification Lambda
+  SlackNotificationRole:
+    Type: AWS::IAM::Role
+    Condition: HasSlackWebhook
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  # SNS subscription for Slack notifications
+  SlackNotificationSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasSlackWebhook
+    Properties:
+      Protocol: lambda
+      TopicArn: !Ref CriticalAlertsTopic
+      Endpoint: !GetAtt SlackNotificationFunction.Arn
+
+  # Permission for SNS to invoke Slack Lambda
+  SlackNotificationPermission:
+    Type: AWS::Lambda::Permission
+    Condition: HasSlackWebhook
+    Properties:
+      FunctionName: !Ref SlackNotificationFunction
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref CriticalAlertsTopic
+
+  # CloudWatch Alarms for VPN Tunnel Status
+  VPNTunnel1DownAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-vpn-tunnel-1-down'
+      AlarmDescription: 'VPN Tunnel 1 is down'
+      MetricName: 'VPNTunnelState'
+      Namespace: !Sub 'VPN/${ProjectName}'
+      Statistic: Average
+      Period: 300  # 5 minutes
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      Dimensions:
+        - Name: TunnelNumber
+          Value: '1'
+        - Name: Project
+          Value: !Ref ProjectName
+      AlarmActions:
+        - !Ref CriticalAlertsTopic
+      OKActions:
+        - !Ref InfoAlertsTopic
+
+  VPNTunnel2DownAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-vpn-tunnel-2-down'
+      AlarmDescription: 'VPN Tunnel 2 is down'
+      MetricName: 'VPNTunnelState'
+      Namespace: !Sub 'VPN/${ProjectName}'
+      Statistic: Average
+      Period: 300  # 5 minutes
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      Dimensions:
+        - Name: TunnelNumber
+          Value: '2'
+        - Name: Project
+          Value: !Ref ProjectName
+      AlarmActions:
+        - !Ref CriticalAlertsTopic
+      OKActions:
+        - !Ref InfoAlertsTopic
+
+  # Composite alarm for both tunnels down
+  BothVPNTunnelsDownAlarm:
+    Type: AWS::CloudWatch::CompositeAlarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-both-vpn-tunnels-down'
+      AlarmDescription: 'Both VPN tunnels are down - critical connectivity failure'
+      AlarmRule: !Sub |
+        ALARM("${VPNTunnel1DownAlarm}") AND ALARM("${VPNTunnel2DownAlarm}")
+      ActionsEnabled: true
+      AlarmActions:
+        - !Ref CriticalAlertsTopic
+
+  # Cross-partition latency alarm
+  CrossPartitionHighLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-high-latency'
+      AlarmDescription: 'Cross-partition request latency is high'
+      MetricName: 'CrossPartitionLatency'
+      Namespace: 'CrossPartition/VPN'
+      Statistic: Average
+      Period: 900  # 15 minutes
+      EvaluationPeriods: 2
+      Threshold: 5000  # 5 seconds
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: RoutingMethod
+          Value: 'vpn'
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+      OKActions:
+        - !Ref InfoAlertsTopic
+
+  # Cross-partition error rate alarm
+  CrossPartitionErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-high-error-rate'
+      AlarmDescription: 'Cross-partition request error rate is high'
+      MetricName: 'CrossPartitionRequests'
+      Namespace: 'CrossPartition/VPN'
+      Statistic: Sum
+      Period: 300  # 5 minutes
+      EvaluationPeriods: 3
+      Threshold: 10  # 10 errors in 5 minutes
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: RoutingMethod
+          Value: 'vpn'
+        - Name: Success
+          Value: 'False'
+      AlarmActions:
+        - !Ref CriticalAlertsTopic
+      OKActions:
+        - !Ref InfoAlertsTopic
+
+  # VPC endpoint connectivity alarms
+  VPCEndpointSecretsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-vpc-endpoint-secrets-failure'
+      AlarmDescription: 'Secrets Manager VPC endpoint failures'
+      MetricName: 'VPCEndpointFailure'
+      Namespace: 'CrossPartition/VPN/Errors'
+      Statistic: Sum
+      Period: 300  # 5 minutes
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: ResourceId
+          Value: 'secretsmanager'
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+
+  VPCEndpointDynamoDBAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-vpc-endpoint-dynamodb-failure'
+      AlarmDescription: 'DynamoDB VPC endpoint failures'
+      MetricName: 'VPCEndpointFailure'
+      Namespace: 'CrossPartition/VPN/Errors'
+      Statistic: Sum
+      Period: 300  # 5 minutes
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: ResourceId
+          Value: 'dynamodb'
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+
+  # Lambda function performance alarms
+  LambdaErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-lambda-error-rate'
+      AlarmDescription: 'Lambda function error rate is high'
+      MetricName: 'Errors'
+      Namespace: 'AWS/Lambda'
+      Statistic: Sum
+      Period: 300  # 5 minutes
+      EvaluationPeriods: 2
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${ProjectName}-cross-partition-inference'
+      AlarmActions:
+        - !Ref CriticalAlertsTopic
+
+  LambdaDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-lambda-duration'
+      AlarmDescription: 'Lambda function duration is high'
+      MetricName: 'Duration'
+      Namespace: 'AWS/Lambda'
+      Statistic: Average
+      Period: 900  # 15 minutes
+      EvaluationPeriods: 2
+      Threshold: 30000  # 30 seconds
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${ProjectName}-cross-partition-inference'
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+
+  LambdaThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-lambda-throttles'
+      AlarmDescription: 'Lambda function is being throttled'
+      MetricName: 'Throttles'
+      Namespace: 'AWS/Lambda'
+      Statistic: Sum
+      Period: 300  # 5 minutes
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${ProjectName}-cross-partition-inference'
+      AlarmActions:
+        - !Ref CriticalAlertsTopic
+
+  # VPN validation health alarm
+  VPNValidationHealthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-vpn-validation-health'
+      AlarmDescription: 'VPN validation health check is failing'
+      MetricName: 'VPNValidationHealth'
+      Namespace: !Sub 'VPN/${ProjectName}/Validation'
+      Statistic: Average
+      Period: 900  # 15 minutes
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      Dimensions:
+        - Name: Project
+          Value: !Ref ProjectName
+      AlarmActions:
+        - !Ref CriticalAlertsTopic
+      OKActions:
+        - !Ref InfoAlertsTopic
+
+  # CloudWatch Dashboard
+  VPNMonitoringDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${ProjectName}-vpn-monitoring'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "VPN/${ProjectName}", "VPNTunnelState", "TunnelNumber", "1", "Project", "${ProjectName}" ],
+                  [ "...", "2", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "VPN Tunnel Status",
+                "period": 300,
+                "yAxis": {
+                  "left": {
+                    "min": 0,
+                    "max": 1
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "CrossPartition/VPN", "CrossPartitionLatency", "RoutingMethod", "vpn" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Cross-Partition Latency",
+                "period": 300,
+                "stat": "Average"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "CrossPartition/VPN", "CrossPartitionRequests", "RoutingMethod", "vpn", "Success", "True" ],
+                  [ "...", "False" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Cross-Partition Request Success/Failure",
+                "period": 300,
+                "stat": "Sum"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/Lambda", "Duration", "FunctionName", "${ProjectName}-cross-partition-inference" ],
+                  [ ".", "Errors", ".", "." ],
+                  [ ".", "Invocations", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Function Metrics",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 12,
+              "width": 24,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "CrossPartition/VPN/Errors", "VPCEndpointFailure", "ResourceId", "secretsmanager" ],
+                  [ "...", "dynamodb" ],
+                  [ "...", "logs" ],
+                  [ "...", "cloudwatch" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "VPC Endpoint Failures",
+                "period": 300,
+                "stat": "Sum"
+              }
+            },
+            {
+              "type": "log",
+              "x": 0,
+              "y": 18,
+              "width": 24,
+              "height": 6,
+              "properties": {
+                "query": "SOURCE '/aws/lambda/${ProjectName}-cross-partition-inference'\n| fields @timestamp, @message\n| filter @message like /ERROR/\n| sort @timestamp desc\n| limit 100",
+                "region": "${AWS::Region}",
+                "title": "Recent Lambda Errors",
+                "view": "table"
+              }
+            }
+          ]
+        }
+
+Conditions:
+  HasSlackWebhook: !Not [!Equals [!Ref SlackWebhookUrl, '']]
+
+Outputs:
+  CriticalAlertsTopicArn:
+    Description: 'ARN of the critical alerts SNS topic'
+    Value: !Ref CriticalAlertsTopic
+    Export:
+      Name: !Sub '${AWS::StackName}-CriticalAlertsTopicArn'
+
+  WarningAlertsTopicArn:
+    Description: 'ARN of the warning alerts SNS topic'
+    Value: !Ref WarningAlertsTopic
+    Export:
+      Name: !Sub '${AWS::StackName}-WarningAlertsTopicArn'
+
+  InfoAlertsTopicArn:
+    Description: 'ARN of the info alerts SNS topic'
+    Value: !Ref InfoAlertsTopic
+    Export:
+      Name: !Sub '${AWS::StackName}-InfoAlertsTopicArn'
+
+  DashboardURL:
+    Description: 'URL of the CloudWatch dashboard'
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${ProjectName}-vpn-monitoring'
+    Export:
+      Name: !Sub '${AWS::StackName}-DashboardURL'
+
+  SlackNotificationFunctionArn:
+    Description: 'ARN of the Slack notification Lambda function'
+    Value: !If [HasSlackWebhook, !GetAtt SlackNotificationFunction.Arn, 'Not configured']
+    Export:
+      Name: !Sub '${AWS::StackName}-SlackNotificationFunctionArn'

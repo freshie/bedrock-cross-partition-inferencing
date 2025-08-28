@@ -1,0 +1,8 @@
+{
+  "body": "{\"modelId\":\"anthropic.claude-3-haiku-20240307-v1:0\",\"contentType\":\"application/json\",\"accept\":\"application/json\",\"body\":\"{\\\"messages\\\":[{\\\"role\\\":\\\"user\\\",\\\"content\\\":\\\"Please respond with just 'WORKING' to confirm.\\\"}],\\\"max_tokens\\\":20}\"}",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "httpMethod": "POST",
+  "path": "/v1/bedrock/invoke-model"
+}

@@ -1,0 +1,40 @@
+# Test requirements for VPN Lambda function unit tests
+
+# Core testing framework
+unittest2>=1.1.0
+
+# Mocking and test utilities
+mock>=4.0.3
+
+# Coverage reporting
+coverage>=6.0
+
+# AWS SDK for testing
+boto3>=1.26.0
+botocore>=1.29.0
+
+# JSON handling and utilities
+jsonschema>=4.0.0
+
+# Date/time utilities for testing
+python-dateutil>=2.8.0
+
+# HTTP testing utilities
+responses>=0.20.0
+
+# Test data generation
+faker>=15.0.0
+
+# Assertion helpers
+assertpy>=1.1
+
+# Test reporting
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-html>=3.0.0
+pytest-json-report>=1.5.0
+
+# Development utilities
+black>=22.0.0
+flake8>=5.0.0
+mypy>=0.991

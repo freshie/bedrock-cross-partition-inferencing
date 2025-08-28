@@ -1,0 +1,428 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lambda function for cross-partition Bedrock requests via VPN with VPC configuration'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'prod'
+    Description: 'Environment name for resource tagging'
+  
+  ProjectName:
+    Type: String
+    Default: 'cross-partition-vpn'
+    Description: 'Project name for resource naming'
+
+  VPCStackName:
+    Type: String
+    Default: 'cross-partition-vpn-govcloud-vpc'
+    Description: 'Name of the VPC stack to import resources from'
+
+  VPCEndpointsStackName:
+    Type: String
+    Default: 'cross-partition-vpn-govcloud-endpoints'
+    Description: 'Name of the VPC endpoints stack to import resources from'
+
+  CommercialCredentialsSecret:
+    Type: String
+    Default: 'cross-partition-commercial-creds'
+    Description: 'Name of the Secrets Manager secret containing commercial credentials'
+
+  RequestLogTable:
+    Type: String
+    Default: 'cross-partition-requests'
+    Description: 'Name of the DynamoDB table for request logging'
+
+Resources:
+  # IAM Role for Lambda function with VPC and VPC endpoint permissions
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: CrossPartitionVPNPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Secrets Manager access via VPC endpoint
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${CommercialCredentialsSecret}*'
+              
+              # DynamoDB access via VPC endpoint
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RequestLogTable}'
+              
+              # CloudWatch Logs access via VPC endpoint
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: '*'
+              
+              # CloudWatch Metrics access via VPC endpoint
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
+                Resource: '*'
+              
+              # VPC endpoint testing permissions
+              - Effect: Allow
+                Action:
+                  - secretsmanager:ListSecrets
+                  - dynamodb:ListTables
+                  - sts:GetCallerIdentity
+                Resource: '*'
+              
+              # Lambda service permissions for testing
+              - Effect: Allow
+                Action:
+                  - lambda:GetFunction
+                  - lambda:ListFunctions
+                Resource: '*'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-lambda-execution-role'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Lambda function with VPC configuration
+  CrossPartitionLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-cross-partition-inference'
+      Runtime: python3.11
+      Handler: vpn_lambda_function.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300  # 5 minutes for VPN latency
+      MemorySize: 1024  # Increased memory for VPC cold starts
+      ReservedConcurrencyLimit: 100
+      VpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue: !Sub '${VPCStackName}-LambdaSecurityGroupId'
+        SubnetIds:
+          - Fn::ImportValue: !Sub '${VPCStackName}-PrivateSubnetId'
+      Environment:
+        Variables:
+          # VPC endpoint URLs
+          VPC_ENDPOINT_SECRETS:
+            Fn::ImportValue: !Sub '${VPCEndpointsStackName}-SecretsManagerEndpointDNS'
+          VPC_ENDPOINT_DYNAMODB: 'https://dynamodb.us-gov-west-1.amazonaws.com'  # Gateway endpoint
+          VPC_ENDPOINT_LOGS:
+            Fn::ImportValue: !Sub '${VPCEndpointsStackName}-CloudWatchLogsEndpointDNS'
+          VPC_ENDPOINT_MONITORING:
+            Fn::ImportValue: !Sub '${VPCEndpointsStackName}-CloudWatchMetricsEndpointDNS'
+          VPC_ENDPOINT_LAMBDA:
+            Fn::ImportValue: !Sub '${VPCEndpointsStackName}-LambdaEndpointDNS'
+          VPC_ENDPOINT_STS:
+            Fn::ImportValue: !Sub '${VPCEndpointsStackName}-STSEndpointDNS'
+          
+          # Configuration
+          COMMERCIAL_CREDENTIALS_SECRET: !Ref CommercialCredentialsSecret
+          REQUEST_LOG_TABLE: !Ref RequestLogTable
+          ROUTING_METHOD: 'vpn'
+          COMMERCIAL_BEDROCK_ENDPOINT: 'https://bedrock-runtime.us-east-1.amazonaws.com'
+          
+          # Lambda configuration
+          AWS_LAMBDA_LOG_LEVEL: 'INFO'
+          PYTHONPATH: '/var/task:/opt/python'
+      Code:
+        ZipFile: |
+          # Placeholder code - will be replaced during deployment
+          import json
+          def lambda_handler(event, context):
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps({'message': 'Placeholder function'})
+              }
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-cross-partition-lambda'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: RoutingMethod
+          Value: 'vpn'
+
+  # Lambda function for VPC endpoint testing
+  VPCEndpointTestFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-vpc-endpoint-test'
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue: !Sub '${VPCStackName}-LambdaSecurityGroupId'
+        SubnetIds:
+          - Fn::ImportValue: !Sub '${VPCStackName}-PrivateSubnetId'
+      Environment:
+        Variables:
+          # VPC endpoint URLs
+          VPC_ENDPOINT_SECRETS:
+            Fn::ImportValue: !Sub '${VPCEndpointsStackName}-SecretsManagerEndpointDNS'
+          VPC_ENDPOINT_DYNAMODB: 'https://dynamodb.us-gov-west-1.amazonaws.com'
+          VPC_ENDPOINT_LOGS:
+            Fn::ImportValue: !Sub '${VPCEndpointsStackName}-CloudWatchLogsEndpointDNS'
+          VPC_ENDPOINT_MONITORING:
+            Fn::ImportValue: !Sub '${VPCEndpointsStackName}-CloudWatchMetricsEndpointDNS'
+          VPC_ENDPOINT_LAMBDA:
+            Fn::ImportValue: !Sub '${VPCEndpointsStackName}-LambdaEndpointDNS'
+          VPC_ENDPOINT_STS:
+            Fn::ImportValue: !Sub '${VPCEndpointsStackName}-STSEndpointDNS'
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import time
+          from datetime import datetime
+          
+          def lambda_handler(event, context):
+              """Test VPC endpoint connectivity"""
+              
+              test_results = {
+                  'timestamp': datetime.utcnow().isoformat(),
+                  'function_name': context.function_name,
+                  'tests': {}
+              }
+              
+              # Test Secrets Manager VPC endpoint
+              try:
+                  endpoint_url = os.environ.get('VPC_ENDPOINT_SECRETS')
+                  if endpoint_url:
+                      client = boto3.client('secretsmanager', endpoint_url=f'https://{endpoint_url}')
+                  else:
+                      client = boto3.client('secretsmanager')
+                  
+                  start_time = time.time()
+                  response = client.list_secrets(MaxResults=1)
+                  latency = (time.time() - start_time) * 1000
+                  
+                  test_results['tests']['secretsmanager'] = {
+                      'status': 'SUCCESS',
+                      'latency_ms': round(latency, 2),
+                      'endpoint': endpoint_url or 'default',
+                      'secrets_count': len(response.get('SecretList', []))
+                  }
+              except Exception as e:
+                  test_results['tests']['secretsmanager'] = {
+                      'status': 'FAILED',
+                      'error': str(e),
+                      'endpoint': os.environ.get('VPC_ENDPOINT_SECRETS', 'default')
+                  }
+              
+              # Test DynamoDB VPC endpoint
+              try:
+                  endpoint_url = os.environ.get('VPC_ENDPOINT_DYNAMODB')
+                  if endpoint_url and not endpoint_url.startswith('https://dynamodb.'):
+                      client = boto3.client('dynamodb', endpoint_url=endpoint_url)
+                  else:
+                      client = boto3.client('dynamodb')
+                  
+                  start_time = time.time()
+                  response = client.list_tables(Limit=1)
+                  latency = (time.time() - start_time) * 1000
+                  
+                  test_results['tests']['dynamodb'] = {
+                      'status': 'SUCCESS',
+                      'latency_ms': round(latency, 2),
+                      'endpoint': endpoint_url or 'default',
+                      'tables_count': len(response.get('TableNames', []))
+                  }
+              except Exception as e:
+                  test_results['tests']['dynamodb'] = {
+                      'status': 'FAILED',
+                      'error': str(e),
+                      'endpoint': os.environ.get('VPC_ENDPOINT_DYNAMODB', 'default')
+                  }
+              
+              # Test CloudWatch Logs VPC endpoint
+              try:
+                  endpoint_url = os.environ.get('VPC_ENDPOINT_LOGS')
+                  if endpoint_url:
+                      client = boto3.client('logs', endpoint_url=f'https://{endpoint_url}')
+                  else:
+                      client = boto3.client('logs')
+                  
+                  start_time = time.time()
+                  response = client.describe_log_groups(limit=1)
+                  latency = (time.time() - start_time) * 1000
+                  
+                  test_results['tests']['logs'] = {
+                      'status': 'SUCCESS',
+                      'latency_ms': round(latency, 2),
+                      'endpoint': endpoint_url or 'default',
+                      'log_groups_count': len(response.get('logGroups', []))
+                  }
+              except Exception as e:
+                  test_results['tests']['logs'] = {
+                      'status': 'FAILED',
+                      'error': str(e),
+                      'endpoint': os.environ.get('VPC_ENDPOINT_LOGS', 'default')
+                  }
+              
+              # Test CloudWatch Metrics VPC endpoint
+              try:
+                  endpoint_url = os.environ.get('VPC_ENDPOINT_MONITORING')
+                  if endpoint_url:
+                      client = boto3.client('cloudwatch', endpoint_url=f'https://{endpoint_url}')
+                  else:
+                      client = boto3.client('cloudwatch')
+                  
+                  start_time = time.time()
+                  response = client.list_metrics(MaxRecords=1)
+                  latency = (time.time() - start_time) * 1000
+                  
+                  test_results['tests']['cloudwatch'] = {
+                      'status': 'SUCCESS',
+                      'latency_ms': round(latency, 2),
+                      'endpoint': endpoint_url or 'default',
+                      'metrics_count': len(response.get('Metrics', []))
+                  }
+              except Exception as e:
+                  test_results['tests']['cloudwatch'] = {
+                      'status': 'FAILED',
+                      'error': str(e),
+                      'endpoint': os.environ.get('VPC_ENDPOINT_MONITORING', 'default')
+                  }
+              
+              # Test STS VPC endpoint
+              try:
+                  endpoint_url = os.environ.get('VPC_ENDPOINT_STS')
+                  if endpoint_url:
+                      client = boto3.client('sts', endpoint_url=f'https://{endpoint_url}')
+                  else:
+                      client = boto3.client('sts')
+                  
+                  start_time = time.time()
+                  response = client.get_caller_identity()
+                  latency = (time.time() - start_time) * 1000
+                  
+                  test_results['tests']['sts'] = {
+                      'status': 'SUCCESS',
+                      'latency_ms': round(latency, 2),
+                      'endpoint': endpoint_url or 'default',
+                      'account_id': response.get('Account', 'unknown')
+                  }
+              except Exception as e:
+                  test_results['tests']['sts'] = {
+                      'status': 'FAILED',
+                      'error': str(e),
+                      'endpoint': os.environ.get('VPC_ENDPOINT_STS', 'default')
+                  }
+              
+              # Calculate overall health
+              successful_tests = sum(1 for test in test_results['tests'].values() if test['status'] == 'SUCCESS')
+              total_tests = len(test_results['tests'])
+              
+              test_results['overall_health'] = {
+                  'status': 'HEALTHY' if successful_tests == total_tests else 'DEGRADED' if successful_tests > 0 else 'UNHEALTHY',
+                  'successful_tests': successful_tests,
+                  'total_tests': total_tests,
+                  'success_rate': round((successful_tests / total_tests) * 100, 2) if total_tests > 0 else 0
+              }
+              
+              return {
+                  'statusCode': 200,
+                  'headers': {'Content-Type': 'application/json'},
+                  'body': json.dumps(test_results, indent=2)
+              }
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-vpc-endpoint-test'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # CloudWatch Log Group for Lambda function
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${CrossPartitionLambdaFunction}'
+      RetentionInDays: 30
+
+  # CloudWatch Log Group for VPC endpoint test function
+  VPCEndpointTestLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${VPCEndpointTestFunction}'
+      RetentionInDays: 7
+
+  # Lambda Layer for shared dependencies (optional)
+  SharedDependenciesLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub '${ProjectName}-shared-dependencies'
+      Description: 'Shared dependencies for cross-partition Lambda functions'
+      Content:
+        ZipFile: |
+          # Placeholder for shared dependencies
+          # In real deployment, this would contain boto3, requests, etc.
+      CompatibleRuntimes:
+        - python3.11
+      LicenseInfo: 'MIT'
+
+Outputs:
+  LambdaFunctionArn:
+    Description: 'ARN of the cross-partition Lambda function'
+    Value: !GetAtt CrossPartitionLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaFunctionArn'
+
+  LambdaFunctionName:
+    Description: 'Name of the cross-partition Lambda function'
+    Value: !Ref CrossPartitionLambdaFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaFunctionName'
+
+  VPCEndpointTestFunctionArn:
+    Description: 'ARN of the VPC endpoint test Lambda function'
+    Value: !GetAtt VPCEndpointTestFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-VPCEndpointTestFunctionArn'
+
+  VPCEndpointTestFunctionName:
+    Description: 'Name of the VPC endpoint test Lambda function'
+    Value: !Ref VPCEndpointTestFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-VPCEndpointTestFunctionName'
+
+  LambdaExecutionRoleArn:
+    Description: 'ARN of the Lambda execution role'
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaExecutionRoleArn'
+
+  SharedDependenciesLayerArn:
+    Description: 'ARN of the shared dependencies layer'
+    Value: !Ref SharedDependenciesLayer
+    Export:
+      Name: !Sub '${AWS::StackName}-SharedDependenciesLayerArn'
