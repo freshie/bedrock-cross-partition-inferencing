@@ -1,0 +1,325 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'VPN Lambda function for dual routing architecture with VPC configuration'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: 'dual-routing-api-gateway'
+    Description: 'Project name for resource naming'
+  
+  Environment:
+    Type: String
+    Default: 'prod'
+    AllowedValues: ['dev', 'stage', 'prod']
+    Description: 'Environment name for resource tagging'
+  
+  FunctionName:
+    Type: String
+    Description: 'Name of the Lambda function'
+  
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: 'VPC ID where the Lambda function will be deployed'
+  
+  SubnetIds:
+    Type: CommaDelimitedList
+    Description: 'Private subnet IDs for Lambda function (comma-separated)'
+  
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: 'Security Group ID for Lambda function'
+  
+  MemorySize:
+    Type: Number
+    Default: 512
+    MinValue: 128
+    MaxValue: 10240
+    Description: 'Lambda function memory size in MB'
+  
+  Timeout:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    MaxValue: 900
+    Description: 'Lambda function timeout in seconds'
+  
+  CommercialCredentialsSecret:
+    Type: String
+    Default: 'cross-partition-commercial-creds'
+    Description: 'Name of the Secrets Manager secret containing commercial credentials'
+  
+  RequestLogTable:
+    Type: String
+    Default: 'cross-partition-requests'
+    Description: 'Name of the DynamoDB table for request logging'
+  
+  # S3 Deployment Parameters
+  S3Bucket:
+    Type: String
+    Default: ''
+    Description: 'S3 bucket for Lambda deployment package (optional)'
+  
+  S3Key:
+    Type: String
+    Default: ''
+    Description: 'S3 key for Lambda deployment package (optional)'
+  
+  # VPC Endpoint Parameters
+  BedrockVpcEndpoint:
+    Type: String
+    Default: ''
+    Description: 'Bedrock VPC Endpoint ID (optional)'
+  
+  SecretsVpcEndpoint:
+    Type: String
+    Default: ''
+    Description: 'Secrets Manager VPC Endpoint ID (optional)'
+  
+  DynamoDbVpcEndpoint:
+    Type: String
+    Default: ''
+    Description: 'DynamoDB VPC Endpoint ID (optional)'
+
+Conditions:
+  HasS3Deployment: !And [!Not [!Equals [!Ref S3Bucket, '']], !Not [!Equals [!Ref S3Key, '']]]
+  HasBedrockVpcEndpoint: !Not [!Equals [!Ref BedrockVpcEndpoint, '']]
+  HasSecretsVpcEndpoint: !Not [!Equals [!Ref SecretsVpcEndpoint, '']]
+  HasDynamoDbVpcEndpoint: !Not [!Equals [!Ref DynamoDbVpcEndpoint, '']]
+
+Resources:
+
+  # IAM Role for VPN Lambda
+  VPNLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${FunctionName}-execution-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws-us-gov:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: VPNLambdaSecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Sub 'arn:aws-us-gov:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${CommercialCredentialsSecret}*'
+        - PolicyName: VPNLambdaDynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: !Sub 'arn:aws-us-gov:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RequestLogTable}'
+        - PolicyName: VPNLambdaCloudWatchAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: !Sub 'arn:aws-us-gov:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${FunctionName}*'
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    'cloudwatch:namespace': 'CrossPartition/DualRouting'
+        - PolicyName: VPNLambdaBedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                  - bedrock:ListFoundationModels
+                  - bedrock:GetFoundationModel
+                Resource: '*'
+      Tags:
+        - Key: Name
+          Value: !Sub '${FunctionName}-execution-role'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Component
+          Value: 'vpn-lambda-iam'
+
+  # Lambda Function for VPN Routing
+  VPNLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref FunctionName
+      Description: 'Lambda function for VPN-routed cross-partition Bedrock requests'
+      Runtime: python3.9
+      Handler: dual_routing_vpn_lambda.lambda_handler
+      Role: !GetAtt VPNLambdaExecutionRole.Arn
+      Timeout: !Ref Timeout
+      MemorySize: !Ref MemorySize
+      ReservedConcurrencyLimit: 100
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref SecurityGroupId
+        SubnetIds: !Ref SubnetIds
+      Environment:
+        Variables:
+          COMMERCIAL_CREDENTIALS_SECRET: !Ref CommercialCredentialsSecret
+          REQUEST_LOG_TABLE: !Ref RequestLogTable
+          VPC_ENDPOINT_BEDROCK: !If [HasBedrockVpcEndpoint, !Ref BedrockVpcEndpoint, !Ref 'AWS::NoValue']
+          VPC_ENDPOINT_SECRETS: !If [HasSecretsVpcEndpoint, !Ref SecretsVpcEndpoint, !Ref 'AWS::NoValue']
+          VPC_ENDPOINT_DYNAMODB: !If [HasDynamoDbVpcEndpoint, !Ref DynamoDbVpcEndpoint, !Ref 'AWS::NoValue']
+      Code: !If
+        - HasS3Deployment
+        - S3Bucket: !Ref S3Bucket
+          S3Key: !Ref S3Key
+        - ZipFile: |
+            # Placeholder code - will be replaced during deployment
+            import json
+            def lambda_handler(event, context):
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps({'message': 'VPN Lambda placeholder - code will be updated'})
+                }
+      Tags:
+        - Key: Name
+          Value: !Ref FunctionName
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Component
+          Value: 'vpn-lambda-function'
+        - Key: RoutingMethod
+          Value: 'vpn'
+
+  # CloudWatch Log Group for VPN Lambda
+  VPNLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${FunctionName}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub '${FunctionName}-logs'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Component
+          Value: 'vpn-lambda-logs'
+
+  # Lambda Permission for API Gateway (will be added when API Gateway is configured)
+  VPNLambdaApiGatewayPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref VPNLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws-us-gov:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/*'
+
+  # CloudWatch Alarms for VPN Lambda
+  VPNLambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${FunctionName}-errors'
+      AlarmDescription: 'VPN Lambda function error rate alarm'
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref VPNLambdaFunction
+      TreatMissingData: notBreaching
+      Tags:
+        - Key: Name
+          Value: !Sub '${FunctionName}-error-alarm'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  VPNLambdaDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${FunctionName}-duration'
+      AlarmDescription: 'VPN Lambda function duration alarm'
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref Timeout
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref VPNLambdaFunction
+      TreatMissingData: notBreaching
+      Tags:
+        - Key: Name
+          Value: !Sub '${FunctionName}-duration-alarm'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  VPNLambdaFunctionArn:
+    Description: 'ARN of the VPN Lambda function'
+    Value: !GetAtt VPNLambdaFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-vpn-lambda-arn'
+
+  VPNLambdaFunctionName:
+    Description: 'Name of the VPN Lambda function'
+    Value: !Ref VPNLambdaFunction
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-vpn-lambda-name'
+
+  VPNLambdaExecutionRoleArn:
+    Description: 'ARN of the VPN Lambda execution role'
+    Value: !GetAtt VPNLambdaExecutionRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-vpn-lambda-role-arn'
+
+  VPNLambdaLogGroupName:
+    Description: 'CloudWatch Log Group name for VPN Lambda'
+    Value: !Ref VPNLambdaLogGroup
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-vpn-lambda-log-group'
+
+  VPNLambdaErrorAlarmName:
+    Description: 'CloudWatch Error Alarm name for VPN Lambda'
+    Value: !Ref VPNLambdaErrorAlarm
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-vpn-lambda-error-alarm'
+
+  VPNLambdaDurationAlarmName:
+    Description: 'CloudWatch Duration Alarm name for VPN Lambda'
+    Value: !Ref VPNLambdaDurationAlarm
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-vpn-lambda-duration-alarm'
