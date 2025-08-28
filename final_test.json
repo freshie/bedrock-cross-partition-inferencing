@@ -1,6 +1,0 @@
-{
-    "modelId": "anthropic.claude-3-haiku-20240307-v1:0",
-    "contentType": "application/json",
-    "accept": "application/json",
-    "body": "{\"messages\":[{\"role\":\"user\",\"content\":\"System test: Please respond with 'OPERATIONAL' if working.\"}],\"max_tokens\":50}"
-}

@@ -1,8 +1,0 @@
-{
-  "body": "{\"modelId\":\"anthropic.claude-3-sonnet-20240229-v1:0\",\"contentType\":\"application/json\",\"accept\":\"application/json\",\"body\":\"{\\"messages\\":[{\\"role\\":\\"user\\",\\"content\\":\\"Hello! Please respond with just 'Working' to confirm the system is operational.\\"}],\\"max_tokens\\":50}\"}",
-  "headers": {
-    "Content-Type": "application/json"
-  },
-  "httpMethod": "POST",
-  "path": "/v1/bedrock/invoke-model"
-}
