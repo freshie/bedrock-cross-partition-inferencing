@@ -314,7 +314,7 @@ deploy_lambda_function() {
         "ParameterKey=Environment,ParameterValue=$ENVIRONMENT"
         "ParameterKey=FunctionName,ParameterValue=$FUNCTION_NAME"
         "ParameterKey=VpcId,ParameterValue=$VPC_ID"
-        "ParameterKey=SubnetIds,ParameterValue=$SUBNET_IDS"
+        "ParameterKey=SubnetIds,ParameterValue="$PRIVATE_SUBNET_1,$PRIVATE_SUBNET_2""
         "ParameterKey=SecurityGroupId,ParameterValue=$SECURITY_GROUP_ID"
         "ParameterKey=MemorySize,ParameterValue=${MEMORY_SIZE:-512}"
         "ParameterKey=Timeout,ParameterValue=${TIMEOUT:-30}"

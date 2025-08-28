@@ -1,0 +1,231 @@
+{
+  "timestamp": "2025-08-28T01:19:59.794625",
+  "total_tests": 44,
+  "passed_tests": 32,
+  "failed_tests": 3,
+  "error_tests": 9,
+  "skipped_tests": 0,
+  "coverage_percentage": 13.529886914378029,
+  "test_details": [
+    {
+      "test": "test_detect_routing_method_internet_path (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_detect_routing_method_vpn_path (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_forward_to_bedrock_vpn_api_key_http_error (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_forward_to_bedrock_vpn_api_key_success (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_forward_to_bedrock_vpn_aws_credentials_success (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "ERROR",
+      "message": "__getitem__"
+    },
+    {
+      "test": "test_forward_to_bedrock_vpn_timeout_error (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_get_commercial_credentials_vpc_failure (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "FAILED",
+      "message": "'Unable to retrieve commercial credentials' not found in \"name 'get_commercial_credentials_vpc' is not defined\""
+    },
+    {
+      "test": "test_get_commercial_credentials_vpc_success (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "ERROR",
+      "message": "name 'get_commercial_credentials_vpc' is not defined"
+    },
+    {
+      "test": "test_get_inference_profile_id_claude_model (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_lambda_handler_authentication_failure (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "ERROR",
+      "message": "<module 'dual_routing_vpn_lambda' from '/Users/treplogl/Documents/cross-partition-inferencing/tests/../lambda/dual_routing_vpn_lambda.py'> does not have the attribute 'get_commercial_credentials_vpc_with_retry'"
+    },
+    {
+      "test": "test_lambda_handler_error_response_structure (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_lambda_handler_get_request_models (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_lambda_handler_get_request_routing_info (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_lambda_handler_invalid_routing_path (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "FAILED",
+      "message": "'internet routing requests' not found in 'This Lambda function only handles VPN routing requests'"
+    },
+    {
+      "test": "test_lambda_handler_missing_request_body (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "FAILED",
+      "message": "'Missing request body' not found in 'Missing required fields: modelId'"
+    },
+    {
+      "test": "test_lambda_handler_service_error (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "ERROR",
+      "message": "<module 'dual_routing_vpn_lambda' from '/Users/treplogl/Documents/cross-partition-inferencing/tests/../lambda/dual_routing_vpn_lambda.py'> does not have the attribute 'get_commercial_credentials_vpc_with_retry'"
+    },
+    {
+      "test": "test_lambda_handler_successful_vpn_request (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "ERROR",
+      "message": "<module 'dual_routing_vpn_lambda' from '/Users/treplogl/Documents/cross-partition-inferencing/tests/../lambda/dual_routing_vpn_lambda.py'> does not have the attribute 'get_commercial_credentials_vpc_with_retry'"
+    },
+    {
+      "test": "test_lambda_handler_vpn_connectivity_failure (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "ERROR",
+      "message": "<module 'dual_routing_vpn_lambda' from '/Users/treplogl/Documents/cross-partition-inferencing/tests/../lambda/dual_routing_vpn_lambda.py'> does not have the attribute 'get_commercial_credentials_vpc_with_retry'"
+    },
+    {
+      "test": "test_parse_request_invalid_json (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_parse_request_missing_model_id (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_parse_request_valid_vpn_request (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_vpc_endpoint_clients_singleton (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "ERROR",
+      "message": "name 'VPCEndpointClients' is not defined"
+    },
+    {
+      "test": "test_vpc_endpoint_health_check_failure (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "ERROR",
+      "message": "No module named 'dual_routing_vpn_lambda.socket'; 'dual_routing_vpn_lambda' is not a package"
+    },
+    {
+      "test": "test_vpc_endpoint_health_check_success (test_vpn_lambda_unit.TestVPNLambdaFunction)",
+      "status": "ERROR",
+      "message": "No module named 'dual_routing_vpn_lambda.socket'; 'dual_routing_vpn_lambda' is not a package"
+    },
+    {
+      "test": "test_error_handler_integration (test_vpn_lambda_unit.TestVPNLambdaIntegration)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_vpc_endpoint_clients_integration (test_vpn_lambda_unit.TestVPNLambdaIntegration)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_check_vpc_endpoint_health_exception (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_check_vpc_endpoint_health_failure (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_check_vpc_endpoint_health_no_endpoint (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_check_vpc_endpoint_health_success (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_get_cloudwatch_client_with_vpc_endpoint (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_get_dynamodb_resource_with_vpc_endpoint (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_get_health_status (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_get_secrets_client_with_vpc_endpoint (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_get_secrets_client_without_vpc_endpoint (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_health_check_timeout_handling (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_health_check_with_custom_port (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_multiple_health_checks (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_singleton_pattern (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_validate_vpn_connectivity_failure (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_validate_vpn_connectivity_no_endpoint (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_validate_vpn_connectivity_success (test_vpn_lambda_vpc_endpoints.TestVPCEndpointClients)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_secrets_client_with_failed_health_check (test_vpn_lambda_vpc_endpoints.TestVPCEndpointIntegration)",
+      "status": "PASSED",
+      "message": null
+    },
+    {
+      "test": "test_secrets_client_with_health_check (test_vpn_lambda_vpc_endpoints.TestVPCEndpointIntegration)",
+      "status": "PASSED",
+      "message": null
+    }
+  ]
+}

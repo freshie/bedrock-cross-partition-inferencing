@@ -1,0 +1,28 @@
+VPN Infrastructure Deployment Report
+Generated: Wed Aug 27 21:39:50 EDT 2025
+Project: dual-routing-api-gateway
+Environment: prod
+Stack Name: dual-routing-api-gateway-prod-vpn-infrastructure
+
+Deployment Configuration:
+- AWS Region: us-gov-west-1
+- VPC CIDR: 10.0.0.0/16
+- Template: /Users/treplogl/Documents/cross-partition-inferencing/infrastructure/dual-routing-vpn-infrastructure.yaml
+
+Stack Status:
+- Status: CREATE_COMPLETE
+- Stack ARN: arn:aws-us-gov:cloudformation:us-gov-west-1:450440386387:stack/dual-routing-api-gateway-prod-vpn-infrastructure/3926e090-83af-11f0-8478-066fb9691b27
+
+Resources Created:
+- VPC with public and private subnets
+- NAT Gateways for private subnet internet access
+- VPN Gateway and Customer Gateway
+- VPN Connection to Commercial AWS
+- VPC Endpoints for AWS services (Bedrock, Secrets Manager, DynamoDB, CloudWatch)
+- Security Groups for Lambda functions and VPC endpoints
+
+Next Steps:
+1. Verify VPN connection establishment with Commercial AWS
+2. Test VPC endpoint connectivity
+3. Deploy VPN Lambda function using deploy-vpn-lambda.sh
+4. Run connectivity validation tests

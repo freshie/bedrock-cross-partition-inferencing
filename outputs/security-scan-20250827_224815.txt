@@ -1,0 +1,24 @@
+Security Scan Report
+Generated: Wed Aug 27 22:48:15 EDT 2025
+Project: Dual Routing API Gateway
+
+Summary:
+========
+Total Security Issues Found: 248
+
+Scan Coverage:
+- Hardcoded secrets and credentials
+- Insecure configurations
+- Hardcoded values (IPs, URLs, ARNs)
+- Insecure code patterns
+- Sensitive data in logging
+- File permissions
+
+Files Scanned:
+- Lambda functions:       12 files
+- CloudFormation templates:       18 files
+- Scripts:       51 files
+- Test files:       17 files
+
+❌ SECURITY SCAN FAILED - 248 issues found
+Review the scan output above for details

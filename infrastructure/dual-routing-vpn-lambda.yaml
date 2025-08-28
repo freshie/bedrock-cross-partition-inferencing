@@ -22,8 +22,8 @@ Parameters:
     Description: 'VPC ID where the Lambda function will be deployed'
   
   SubnetIds:
-    Type: CommaDelimitedList
-    Description: 'Private subnet IDs for Lambda function (comma-separated)'
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: 'Private subnet IDs for Lambda function'
   
   SecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
@@ -177,7 +177,7 @@ Resources:
       Role: !GetAtt VPNLambdaExecutionRole.Arn
       Timeout: !Ref Timeout
       MemorySize: !Ref MemorySize
-      ReservedConcurrencyLimit: 100
+      ReservedConcurrentExecutions: 100
       VpcConfig:
         SecurityGroupIds:
           - !Ref SecurityGroupId

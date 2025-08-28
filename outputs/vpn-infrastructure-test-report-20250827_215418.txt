@@ -1,0 +1,35 @@
+VPN Infrastructure Test Report
+Generated: Wed Aug 27 21:54:18 EDT 2025
+Project: dual-routing-api-gateway
+Environment: prod
+AWS Region: us-gov-west-1
+
+Infrastructure Details:
+- VPC ID: vpc-0a82778bbc7b700ef
+- VPN Connection ID: vpn-031cfaeb996f62462
+- Private Subnets: subnet-0b8b0ec54e2531cea, subnet-06cee54a3206aa8bd
+- Security Group: sg-0959a4d69ef704c36
+
+VPC Endpoints:
+- Secrets Manager: not available
+- DynamoDB: not available
+- CloudWatch Logs: not available
+- CloudWatch: not available
+
+Test Environment:
+- Bearer Token Available: Yes
+- AWS CLI Configured: Yes
+
+Key Differences from Unit Tests:
+1. Real VPC endpoints instead of mocked ones
+2. Actual VPN connectivity validation
+3. Real AWS service integration
+4. Network-level testing within VPC
+5. End-to-end infrastructure validation
+
+Next Steps:
+1. Deploy VPN Lambda if not already deployed
+2. Configure API Gateway with VPN paths
+3. Run end-to-end Bedrock API tests
+4. Set up monitoring and alerting
+5. Perform load testing

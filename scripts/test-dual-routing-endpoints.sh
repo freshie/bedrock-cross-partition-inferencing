@@ -51,11 +51,11 @@ Options:
 
 Examples:
     # Test with API key
-    $0 --api-url https://abcd123456.execute-api.us-gov-west-1.amazonaws.com/prod \\
+    $0 --api-url https://YOUR-API-ID.execute-api.us-gov-west-1.amazonaws.com/prod \\
        --api-key your-api-key-here
     
     # Test without API key (if not required)
-    $0 --api-url https://abcd123456.execute-api.us-gov-west-1.amazonaws.com/prod
+    $0 --api-url https://YOUR-API-ID.execute-api.us-gov-west-1.amazonaws.com/prod
 
 EOF
 }

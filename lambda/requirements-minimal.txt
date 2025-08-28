@@ -1,0 +1,3 @@
+# Minimal Lambda function dependencies
+# boto3 and botocore are already included in Lambda Python runtime
+# Only include dependencies not available in the runtime
