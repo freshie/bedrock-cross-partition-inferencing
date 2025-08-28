@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![AWS](https://img.shields.io/badge/AWS-GovCloud%20%2B%20Commercial-orange)](https://aws.amazon.com/)
 [![Bedrock](https://img.shields.io/badge/Amazon-Bedrock-blue)](https://aws.amazon.com/bedrock/)
-[![Version](https://img.shields.io/badge/Version-1.3.2-green)](VERSION)
+[![Version](https://img.shields.io/badge/Version-1.4.0-green)](VERSION)
 
 ## 🎯 The Problem
 
