@@ -18,7 +18,7 @@ Brief description of what this PR does.
 ## 📖 **Documentation**
 - [ ] I have updated relevant documentation
 - [ ] I have updated code comments where needed
-- [ ] I have updated the CHANGELOG.md (if applicable)
+- [ ] I have updated the docs/CHANGELOG.md (if applicable)
 
 ## 🛡️ **Security Checklist**
 - [ ] No sensitive data (API keys, account IDs) in code or commits

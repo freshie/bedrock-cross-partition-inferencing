@@ -293,7 +293,9 @@ This repository demonstrates a **progressive implementation strategy** where org
 ├── infrastructure/          # CloudFormation templates
 ├── lambda/                 # Lambda function code
 ├── tests/                  # Test scripts
-├── docs/                   # Documentation
+├── docs/                   # All documentation (moved from root)
+├── scripts/                # Deployment and utility scripts
+├── config/                 # Configuration files
 └── .kiro/specs/           # Feature specifications
 ```
 
@@ -329,9 +331,9 @@ This repository demonstrates a **progressive implementation strategy** where org
 
 ## 🤝 **Contributing**
 
-Want to contribute? Check out our [Contributing Guide](CONTRIBUTING.md)!
+Want to contribute? Check out our [Contributing Guide](docs/CONTRIBUTING.md)!
 
-We follow a structured branching strategy for development. Please see our [Branching Strategy](BRANCHING_STRATEGY.md) for detailed workflow information.
+We follow a structured branching strategy for development. Please see our [Branching Strategy](docs/BRANCHING_STRATEGY.md) for detailed workflow information.
 
 **Quick Start:**
 1. Fork the repository
@@ -346,6 +348,8 @@ We follow a structured branching strategy for development. Please see our [Branc
 - `feature/*` - New feature development
 - `hotfix/*` - Critical production fixes
 
+For detailed contribution guidelines, see [Contributing Guide](docs/CONTRIBUTING.md).
+
 ## 📄 **License**
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
@@ -358,7 +362,7 @@ This project addresses a critical challenge faced by government agencies and reg
 
 **Our Solution**: A comprehensive cross-partition AI inference architecture that enables GovCloud applications to securely access Amazon Bedrock services in the AWS Commercial partition while maintaining data sovereignty and meeting all compliance requirements.
 
-For a detailed analysis of the challenges, solution approaches, and implementation strategy, see our comprehensive blog post: [Unlocking Commercial AI Models in AWS GovCloud: Secure Cross-Partition Access for Government Workloads](cross-partition-ai-inference-blog.md)
+For a detailed analysis of the challenges, solution approaches, and implementation strategy, see our comprehensive blog post: [Unlocking Commercial AI Models in AWS GovCloud: Secure Cross-Partition Access for Government Workloads](docs/cross-partition-ai-inference-blog.md)
 
 ## ⚠️ **Disclaimer**
 
@@ -372,9 +376,10 @@ This is an educational/demonstration project showcasing cross-partition AI infer
 ## 📚 **Documentation**
 
 ### **📖 Architecture & Technical Details**
-- 🏗️ [**Architecture Overview**](ARCHITECTURE.md) - Comprehensive system architecture and implementation details
+- 🏗️ [**Architecture Overview**](docs/ARCHITECTURE.md) - Comprehensive system architecture and implementation details
 - 🔧 [**Technical Summary**](docs/TECHNICAL_SUMMARY.md) - Concise technical overview and specifications
-- 📊 [**Implementation Status**](IMPLEMENTATION_STATUS.md) - Current feature completion and roadmap
+- 📊 [**Project Structure**](docs/PROJECT-STRUCTURE.md) - Detailed project organization and components
+- 📋 [**Current State**](docs/CURRENT-STATE-v1.3.0.md) - Current implementation status and roadmap
 
 ### **🚀 Deployment & Setup**
 - ⚡ [**Setup Guide**](docs/SETUP_GUIDE.md) - Complete setup walkthrough
@@ -385,14 +390,14 @@ This is an educational/demonstration project showcasing cross-partition AI infer
 ### **🧪 Testing & Validation**
 - 🧪 [**Lambda Testing**](lambda/README.md) - Function testing and development
 - ✅ [**Test Scripts**](README.md#-usage-examples) - Comprehensive test suite
-- 🔍 [**Security Checklist**](docs/SECURITY-CHECKLIST.md) - Security validation guide
+- 🔍 [**Security Checklist**](docs/security-checklist.md) - Security validation guide
 
 ## 🆘 **Support**
 
 - 🐛 [**Issues**](https://github.com/freshie/bedrock-cross-partition-inferencing/issues) - Bug reports and feature requests
 - 💬 [**Discussions**](https://github.com/freshie/bedrock-cross-partition-inferencing/discussions) - Community Q&A
-- 🤝 [**Contributing**](CONTRIBUTING.md) - How to contribute to the project
-- 🛡️ [**Security Policy**](SECURITY.md) - Security vulnerability reporting
+- 🤝 [**Contributing**](docs/CONTRIBUTING.md) - How to contribute to the project
+- 🛡️ [**Security Policy**](docs/SECURITY.md) - Security vulnerability reporting
 
 ---
 
