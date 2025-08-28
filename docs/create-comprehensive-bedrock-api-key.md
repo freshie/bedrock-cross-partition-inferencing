@@ -14,7 +14,7 @@ Create a comprehensive IAM policy that includes all necessary Bedrock permission
 
 ```bash
 # Create the policy document
-cat > bedrock-full-access-policy.json << 'EOF'
+cat > config/bedrock/bedrock-full-access-policy.json << 'EOF'
 {
     "Version": "2012-10-17",
     "Statement": [
@@ -88,7 +88,7 @@ EOF
 # Create the IAM policy
 aws iam create-policy \
     --policy-name BedrockCrossPartitionFullAccess \
-    --policy-document file://bedrock-full-access-policy.json \
+    --policy-document file://config/bedrock/bedrock-full-access-policy.json \
     --description "Full Bedrock access for cross-partition inference including inference profiles"
 ```
 

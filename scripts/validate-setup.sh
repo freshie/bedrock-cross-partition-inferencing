@@ -119,7 +119,7 @@ echo -e "${GREEN}✅ Commercial credentials can be added during deployment${NC}"
 # Check 7: File Structure
 echo -e "${YELLOW}Checking project file structure...${NC}"
 REQUIRED_FILES=(
-    "deploy-mvp.sh"
+    "scripts/deploy-over-internet.sh"
     "test-cross-partition.sh"
     "infrastructure/cross-partition-infrastructure.yaml"
     "infrastructure/deploy.sh"
@@ -148,7 +148,7 @@ fi
 # Check 8: Script Permissions
 echo -e "${YELLOW}Checking script permissions...${NC}"
 SCRIPTS=(
-    "deploy-mvp.sh"
+    "scripts/deploy-over-internet.sh"
     "test-cross-partition.sh"
     "infrastructure/deploy.sh"
     "infrastructure/deploy-lambda.sh"
@@ -174,7 +174,7 @@ if [ "$VALIDATION_PASSED" = true ]; then
     echo -e "${GREEN}✅ Ready for deployment${NC}"
     echo ""
     echo -e "${YELLOW}Next steps:${NC}"
-    echo "1. Run: ./deploy-mvp.sh"
+    echo "1. Run: ./scripts/deploy-over-internet.sh (for internet routing) or ./scripts/deploy-complete-vpn-infrastructure.sh (for VPN routing)"
     echo "2. Follow the prompts to complete deployment"
     echo "3. Update commercial credentials when prompted"
     echo "4. Test with: ./test-cross-partition.sh"

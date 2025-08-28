@@ -236,7 +236,7 @@ Each version is backward compatible - existing v1.0.0 deployments can be upgrade
 
 - **[README.md](../README.md)**: Quick start guide
 - **[ARCHITECTURE.md](../ARCHITECTURE.md)**: Detailed architecture documentation
-- **[CONTRIBUTING.md](../CONTRIBUTING.md)**: Contribution guidelines
+- **[CONTRIBUTING.md](CONTRIBUTING.md)**: Contribution guidelines
 - **[Infrastructure README](../infrastructure/README.md)**: Deployment details
 - **[Lambda README](../lambda/README.md)**: Function implementation
 

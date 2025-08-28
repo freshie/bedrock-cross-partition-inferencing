@@ -25,7 +25,7 @@ echo ""
 if ! aws cloudformation describe-stacks --stack-name "$STACK_NAME" --profile "$PROFILE" --region "$REGION" > /dev/null 2>&1; then
     echo -e "${RED}❌ Error: Stack '$STACK_NAME' not found${NC}"
     echo -e "${YELLOW}Available options:${NC}"
-    echo "1. Deploy the infrastructure first: ./deploy-mvp.sh"
+    echo "1. Deploy the infrastructure first: ./scripts/deploy-over-internet.sh (internet) or ./scripts/deploy-complete-vpn-infrastructure.sh (VPN)"
     echo "2. Use a different stack name: STACK_NAME=your-stack-name $0"
     echo "3. Use a different profile: AWS_PROFILE=your-profile $0"
     exit 1
@@ -75,10 +75,13 @@ echo "   Models Endpoint: $MODELS_ENDPOINT"
 echo "   Secret Name: $SECRET_NAME"
 echo ""
 
-# Create config.sh file
-echo -e "${YELLOW}📝 Creating config.sh file...${NC}"
+# Create config directory if it doesn't exist
+mkdir -p config
 
-cat > config.sh << EOF
+# Create config.sh file
+echo -e "${YELLOW}📝 Creating config/config.sh file...${NC}"
+
+cat > config/config.sh << EOF
 #!/bin/bash
 
 # Cross-Partition Bedrock Inference Configuration
@@ -134,13 +137,14 @@ export TEST_MAX_TOKENS="1000"
 # To customize: Edit the values above as needed
 EOF
 
-chmod +x config.sh
+chmod +x config/config.sh
 
-echo -e "${GREEN}✅ Configuration file created: config.sh${NC}"
+echo -e "${GREEN}✅ Configuration file created: config/config.sh${NC}"
 echo ""
 echo -e "${YELLOW}📋 Next Steps:${NC}"
-echo "1. Review the generated config.sh file"
+echo "1. Review the generated config/config.sh file"
 echo "2. Customize any values as needed"
-echo "3. Run your tests: ./test-invoke-model.sh"
+echo "3. Source the config: source config/config.sh"
+echo "4. Run your tests: ./test-invoke-model.sh"
 echo ""
 echo -e "${BLUE}🎉 Configuration extraction complete!${NC}"

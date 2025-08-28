@@ -1,0 +1,14 @@
+{
+  "created_date": "2025-08-27T13:49:26Z",
+  "expires_in_months": 6,
+  "user_name": "bedrock-cross-partition-user",
+  "service_credential_id": "ACCAQWPI74WHKCNQ4O7OM",
+  "service_credential_alias": "bedrock-cross-partition-user+1-at-048270140814",
+  "bedrock_api_key": "ABSKYmVkcm9jay1jcm9zcy1wYXJ0aXRpb24tdXNlcisxLWF0LTA0ODI3MDE0MDgxNDpTL2NtVFlpcTF5dGd2dURocDNuOGUwcXVPZU9HUkk5ZFU4ajFlaEFuanhSUGh4Uy84TWpzYUxUV0U5WT0=",
+  "region": "us-east-1",
+  "policies": [
+    "AmazonBedrockFullAccess",
+    "BedrockCrossPartitionFullAccess"
+  ],
+  "note": "This is a proper Bedrock service-specific credential (not regular AWS access keys)"
+}

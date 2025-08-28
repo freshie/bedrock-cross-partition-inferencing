@@ -2,6 +2,17 @@
 
 This document provides a comprehensive overview of all scripts in the project, organized by category and highlighting the key testing scripts for cross-partition Bedrock access.
 
+## 🚀 **Quick Reference - Most Used Scripts**
+
+| Script | Purpose | When to Use |
+|--------|---------|-------------|
+| `./scripts/deploy-over-internet.sh` | Deploy complete system (internet) | First deployment, testing |
+| `./scripts/deploy-complete-vpn-infrastructure.sh` | Deploy complete system (VPN) | Production, secure deployments |
+| `./scripts/test-claude-4-1.sh` | Test Claude 4.1 model | Quick validation |
+| `./scripts/test-cross-partition.sh` | Comprehensive testing | Full system validation |
+| `./scripts/get-config.sh` | Get API endpoints | After deployment |
+| `./scripts/validate-setup.sh` | Validate project setup | Before deployment |
+
 ## 🎯 **Key Testing Scripts for Cross-Partition AI Access**
 
 These are the primary scripts you'll use to test and validate cross-partition Bedrock functionality:
@@ -52,7 +63,7 @@ These are the primary scripts you'll use to test and validate cross-partition Be
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
-| `deploy-mvp.sh` | Deploy complete internet-based solution | `./deploy-mvp.sh` |
+| `scripts/deploy-over-internet.sh` | Deploy complete internet-based solution | `./scripts/deploy-over-internet.sh` |
 | `scripts/deploy-dual-routing-api-gateway.sh` | Deploy API Gateway for dual routing | Auto-called by other scripts |
 | `scripts/deploy-dual-routing-auth.sh` | Deploy authentication components | Auto-called by other scripts |
 | `scripts/deploy-dual-routing-monitoring.sh` | Deploy monitoring infrastructure | Auto-called by other scripts |
@@ -129,38 +140,67 @@ These are the primary scripts you'll use to test and validate cross-partition Be
 | `scripts/validate-migration.sh` | Validate migration success | Post-migration check |
 | `scripts/cleanup-project.sh` | Clean up project resources | `./scripts/cleanup-project.sh` |
 
-## 🎯 **Quick Start Testing Workflows**
+## 🎯 **Complete Workflows - Step by Step**
 
-### **Option 1: Internet-Based Testing (Recommended Start)**
+### **🌐 Internet-Based Workflow (Fastest Setup)**
 
 ```bash
-# 1. Deploy the system
-./deploy-mvp.sh
-
-# 2. Validate setup
+# Step 1: Validate your environment
 ./scripts/validate-setup.sh
 
-# 3. Test Claude 4.1 (primary use case)
+# Step 2: Deploy the complete system
+./scripts/deploy-over-internet.sh
+
+# Step 3: Get your API endpoints
+./scripts/get-config.sh
+
+# Step 4: Test Claude 4.1 (most popular model)
 ./scripts/test-claude-4-1.sh
 
-# 4. Run comprehensive tests
+# Step 5: Run comprehensive validation
 ./scripts/test-cross-partition.sh
+
+# Optional: Run security scan
+./scripts/security-scan.sh
 ```
 
-### **Option 2: VPN-Based Testing (Enhanced Security)**
+### **🔒 VPN-Based Workflow (Production Ready)**
 
 ```bash
-# 1. Deploy VPN infrastructure
+# Step 1: Validate your environment
+./scripts/validate-setup.sh
+
+# Step 2: Deploy VPN infrastructure
 ./scripts/deploy-complete-vpn-infrastructure.sh
 
-# 2. Validate VPN connectivity
+# Step 3: Configure VPN tunnels (interactive)
+./scripts/configure-vpn-tunnels.sh
+
+# Step 4: Validate VPN connectivity
 ./scripts/validate-vpn-connectivity.sh
 
-# 3. Test VPN-based Bedrock access
+# Step 5: Test VPN-based Bedrock access
 ./scripts/test-vpn-comprehensive.sh
 
-# 4. Test end-to-end routing
+# Step 6: Test end-to-end routing
 ./scripts/test-end-to-end-routing.sh
+
+# Step 7: Run final security check
+./scripts/final-security-check.sh
+```
+
+### **🔧 Component-Based Workflow (Advanced)**
+
+```bash
+# Deploy individual components as needed
+./scripts/deploy-dual-routing-api-gateway.sh     # API Gateway
+./scripts/deploy-dual-routing-auth.sh            # Authentication
+./scripts/deploy-dual-routing-monitoring.sh      # Monitoring
+
+# Test individual components
+./scripts/test-api-gateway-integration.sh        # API Gateway tests
+./scripts/test-dual-routing-auth.sh              # Auth tests
+./scripts/test-monitoring-dashboard.sh           # Monitoring tests
 ```
 
 ## 🔍 **Script Categories by Use Case**
@@ -193,22 +233,114 @@ These are the primary scripts you'll use to test and validate cross-partition Be
 4. **Monitor Performance**: Use `scripts/run-performance-comparison.sh` to compare options
 5. **Validate Thoroughly**: Use `scripts/run-comprehensive-validation.sh` before deployment
 
-## 🆘 **Troubleshooting**
+## 🆘 **Troubleshooting Guide**
 
-If tests fail, check:
-1. **Configuration**: Run `scripts/validate-setup.sh`
-2. **Credentials**: Verify Secrets Manager configuration
-3. **Network**: For VPN tests, check `scripts/validate-vpn-connectivity.sh`
-4. **Logs**: Check CloudWatch logs for detailed error information
+### **Common Issues & Solutions**
+
+| Issue | Symptoms | Solution Script | Additional Steps |
+|-------|----------|----------------|------------------|
+| **Deployment fails** | CloudFormation errors | `./scripts/validate-setup.sh` | Check AWS credentials, permissions |
+| **Model access denied** | 403 errors in tests | `./scripts/security-scan.sh` | Update Secrets Manager with real API keys |
+| **VPN connectivity issues** | Timeout errors | `./scripts/validate-vpn-connectivity.sh` | Check VPN tunnel configuration |
+| **Authentication failures** | Bearer token errors | `./scripts/test-bearer-token-functionality.sh` | Update bearer token in Secrets Manager |
+| **Performance issues** | Slow responses | `./scripts/run-performance-comparison.sh` | Compare internet vs VPN performance |
+
+### **Diagnostic Scripts**
+
+```bash
+# Quick health check
+./scripts/validate-setup.sh
+
+# Test specific components
+./scripts/test-api-gateway-integration.sh        # API Gateway health
+./scripts/test-dual-routing-auth.sh              # Authentication health
+./scripts/test-monitoring-dashboard.sh           # Monitoring health
+
+# Security validation
+./scripts/security-scan.sh                       # Security issues
+./scripts/final-security-check.sh                # Pre-production check
+
+# Performance analysis
+./scripts/run-performance-comparison.sh          # Compare deployment types
+./scripts/run-load-testing.sh                    # Load testing
+```
+
+### **Log Analysis**
+
+If scripts fail, check logs in this order:
+1. **Script output** - Check the terminal output for immediate errors
+2. **CloudWatch Logs** - Check Lambda function logs in AWS Console
+3. **CloudFormation Events** - Check stack events for deployment issues
+4. **VPC Flow Logs** - For VPN connectivity issues (if enabled)
+
+## 🔗 **Script Dependencies & Execution Order**
+
+### **Deployment Dependencies**
+```mermaid
+graph TD
+    A[validate-setup.sh] --> B[deploy-over-internet.sh]
+    A --> C[deploy-complete-vpn-infrastructure.sh]
+    B --> D[get-config.sh]
+    C --> E[configure-vpn-tunnels.sh]
+    E --> F[validate-vpn-connectivity.sh]
+    D --> G[test-claude-4-1.sh]
+    F --> H[test-vpn-comprehensive.sh]
+```
+
+### **Testing Dependencies**
+- **Before any testing**: Run deployment scripts first
+- **Internet testing**: Requires `deploy-over-internet.sh` completion
+- **VPN testing**: Requires `deploy-complete-vpn-infrastructure.sh` + VPN configuration
+- **Security testing**: Can run after any deployment
+- **Performance testing**: Requires both deployments for comparison
+
+### **Safe Execution Order**
+1. **Setup**: `validate-setup.sh`
+2. **Deploy**: Choose internet OR VPN deployment
+3. **Configure**: `get-config.sh` (internet) OR `configure-vpn-tunnels.sh` (VPN)
+4. **Test**: Run appropriate test scripts
+5. **Validate**: `run-comprehensive-validation.sh`
+6. **Secure**: `final-security-check.sh`
 
 ## 📝 **Script Naming Convention**
 
 - `test-*` - Testing and validation scripts
-- `deploy-*` - Deployment scripts
+- `deploy-*` - Deployment scripts  
 - `validate-*` - Validation and verification scripts
 - `create-*` - Resource creation scripts
 - `run-*` - Execution and orchestration scripts
+- `configure-*` - Configuration and setup scripts
+
+## 🎯 **Script Categories by Experience Level**
+
+### **🟢 Beginner (Start Here)**
+```bash
+./scripts/validate-setup.sh                     # Check prerequisites
+./scripts/deploy-over-internet.sh               # Simple deployment
+./scripts/get-config.sh                         # Get endpoints
+./scripts/test-claude-4-1.sh                    # Basic test
+```
+
+### **🟡 Intermediate (Production Ready)**
+```bash
+./scripts/deploy-complete-vpn-infrastructure.sh # Secure deployment
+./scripts/configure-vpn-tunnels.sh              # VPN setup
+./scripts/test-vpn-comprehensive.sh             # Full VPN testing
+./scripts/run-performance-comparison.sh         # Performance analysis
+```
+
+### **🔴 Advanced (Custom & Troubleshooting)**
+```bash
+./scripts/deploy-dual-routing-api-gateway.sh    # Component deployment
+./scripts/test-api-gateway-integration.sh       # Component testing
+./scripts/security-scan.sh                      # Security analysis
+./scripts/run-comprehensive-validation.sh       # Full validation
+```
 
 ---
 
-**💡 Tip**: For most users, start with `scripts/test-claude-4-1.sh` to quickly validate cross-partition Bedrock access, then progress to `scripts/test-cross-partition.sh` for comprehensive testing.
+**💡 Pro Tips**: 
+- **New users**: Start with the 🟢 Beginner scripts
+- **Production deployments**: Use 🟡 Intermediate scripts  
+- **Custom setups**: Use 🔴 Advanced scripts
+- **Always run** `validate-setup.sh` first!

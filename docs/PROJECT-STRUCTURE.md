@@ -8,7 +8,7 @@ This document describes the organization and purpose of files and directories in
 cross-partition-inferencing/
 ├── 📁 .github/                    # GitHub workflows and templates
 ├── 📁 .kiro/                      # Kiro IDE specifications and settings
-├── 📁 configs/                    # Configuration files and examples
+├── 📁 config/                     # Configuration files and examples
 ├── 📁 docs/                       # Documentation files
 ├── 📁 infrastructure/             # CloudFormation templates
 ├── 📁 lambda/                     # Lambda function source code
@@ -108,9 +108,15 @@ cross-partition-inferencing/
 - `SECURITY-APPROVAL.md` - Official security approval
 - `GIT-HISTORY-SECURITY-ASSESSMENT.md` - Git history security review
 
-### **Configuration Management**
-- `configs/` - Configuration templates and examples
-- `.gitignore` - Prevents sensitive data from being committed
+### **Configuration Management** (`config/`)
+- `config.example.sh` - Shell configuration template
+- `config.sh` - Generated configuration (git-ignored)
+- `config-vpn-example.sh` - VPN-specific configuration template
+- `bedrock/` - Bedrock configuration files and IAM policies
+  - `bedrock-api-key-config.json` - Example API key structure
+  - `bedrock-full-access-policy.json` - IAM policy template
+  - `README.md` - Bedrock configuration documentation
+- `vpn-tunnels/` - VPN tunnel configuration files
 - Security scanning scripts ensure no credentials are exposed
 
 ## 📚 **Documentation Directory** (`docs/`)

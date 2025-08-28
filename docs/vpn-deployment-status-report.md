@@ -174,8 +174,8 @@ User Request → Lambda Function → VPN Routing Logic → Internet Gateway → 
 
 ### **Generated Documentation**
 - ✅ **Setup Guide**: `docs/vpn-tunnel-setup-guide.md`
-- ✅ **Configuration Summary**: `configs/vpn-tunnels/tunnel-configuration-summary.md`
-- ✅ **Quick Reference**: `configs/vpn-tunnels/QUICK-REFERENCE.md`
+- ✅ **Configuration Summary**: `config/vpn-tunnels/tunnel-configuration-summary.md`
+- ✅ **Quick Reference**: `config/vpn-tunnels/QUICK-REFERENCE.md`
 - ✅ **Testing Guide**: `docs/vpn-testing-comparison.md`
 
 ### **Testing Scripts**

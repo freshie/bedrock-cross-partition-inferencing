@@ -15,9 +15,9 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Load configuration
-if [ -f "config.sh" ]; then
-    source config.sh
-    echo -e "${GREEN}✅ Loaded configuration from config.sh${NC}"
+if [ -f "config/config.sh" ]; then
+    source config/config.sh
+    echo -e "${GREEN}✅ Loaded configuration from config/config.sh${NC}"
 else
     echo -e "${RED}❌ Configuration file not found!${NC}"
     echo -e "${YELLOW}📋 Please copy config.example.sh to config.sh and update with your values:${NC}"

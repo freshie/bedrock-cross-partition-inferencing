@@ -393,7 +393,7 @@ test_commercial_aws_connectivity() {
         fi
     else
         log_warning "⚠️  Commercial AWS VPN infrastructure not deployed"
-        log_info "Deploy using: configs/vpn-tunnels/deploy-commercial-vpn.sh"
+        log_info "Deploy using: config/vpn-tunnels/deploy-commercial-vpn.sh"
     fi
     
     return 0

@@ -27,8 +27,8 @@ git checkout -b feature/your-feature-name
 ### 2. Configuration
 ```bash
 # Copy and configure your settings
-cp config.example.sh config.sh
-# Edit config.sh with your specific values
+cp config/config.example.sh config/config.sh
+# Edit config/config.sh with your specific values
 
 # Extract configuration from deployed stack (if available)
 ./scripts/get-config.sh

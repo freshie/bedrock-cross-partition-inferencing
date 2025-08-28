@@ -23,7 +23,7 @@ This guide provides step-by-step instructions for configuring VPN tunnels betwee
 ### Commercial AWS (Needs Deployment)
 - **Status**: Not deployed
 - **Required**: Customer gateway, VPN gateway, VPN connection
-- **Configuration Files**: Generated in `configs/vpn-tunnels/`
+- **Configuration Files**: Generated in `config/vpn-tunnels/`
 
 ## 🔧 **Step 1: Deploy Commercial AWS Infrastructure**
 
@@ -31,7 +31,7 @@ This guide provides step-by-step instructions for configuring VPN tunnels betwee
 
 1. **Navigate to configuration directory**:
    ```bash
-   cd configs/vpn-tunnels/
+   cd config/vpn-tunnels/
    ```
 
 2. **Review the CloudFormation template**:
@@ -315,7 +315,7 @@ Your VPN tunnel configuration is successful when:
 
 ## 📞 **Support and Resources**
 
-- **Configuration Files**: `configs/vpn-tunnels/`
+- **Configuration Files**: `config/vpn-tunnels/`
 - **Test Scripts**: `scripts/test-vpn-tunnel-connectivity.sh`
 - **Logs**: `outputs/vpn-*-test-*.txt`
 - **CloudFormation Templates**: `infrastructure/dual-routing-vpn-*.yaml`

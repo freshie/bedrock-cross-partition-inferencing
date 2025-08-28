@@ -83,7 +83,7 @@ Test the dashboard API:
 ```bash
 # Extract your API endpoint first
 ./scripts/get-config.sh
-source config.sh
+source config/config.sh
 curl -X GET "$API_BASE_URL/dashboard/requests"
 ```
 

@@ -18,7 +18,20 @@ aws-config*
 .env
 .env.*
 *.env
-config.sh
+
+# Configuration Files
+config/config.sh
+config/*config*.sh
+!config/config.example.sh
+!config/config-vpn-example.sh
+!config/vpn-tunnels/deploy-commercial-vpn.sh
+
+# Bedrock Configuration (allow templates, ignore actual keys)
+config/bedrock/*actual*
+config/bedrock/*real*
+!config/bedrock/bedrock-api-key-config.json
+!config/bedrock/bedrock-full-access-policy.json
+!config/bedrock/README.md
 
 # AWS Account Information
 account-info*

@@ -231,7 +231,7 @@ parse_customer_gateway_config() {
 generate_commercial_aws_config() {
     print_header "GENERATING COMMERCIAL AWS CONFIGURATION"
     
-    local config_dir="$PROJECT_ROOT/configs/vpn-tunnels"
+    local config_dir="$PROJECT_ROOT/config/vpn-tunnels"
     mkdir -p "$config_dir"
     
     # Generate CloudFormation template for commercial AWS customer gateway
@@ -647,9 +647,9 @@ generate_deployment_report() {
         echo "4. Test end-to-end connectivity"
         echo ""
         echo "Configuration Files Generated:"
-        echo "- configs/vpn-tunnels/commercial-customer-gateway.yaml"
-        echo "- configs/vpn-tunnels/deploy-commercial-vpn.sh"
-        echo "- configs/vpn-tunnels/tunnel-configuration-summary.md"
+        echo "- config/vpn-tunnels/commercial-customer-gateway.yaml"
+        echo "- config/vpn-tunnels/deploy-commercial-vpn.sh"
+        echo "- config/vpn-tunnels/tunnel-configuration-summary.md"
     } > "$report_file"
     
     log_success "VPN configuration report generated: $report_file"
@@ -731,7 +731,7 @@ main() {
     
     print_header "VPN TUNNEL CONFIGURATION COMPLETED"
     log_success "VPN tunnel configuration completed successfully"
-    log_info "Configuration files generated in: configs/vpn-tunnels/"
+    log_info "Configuration files generated in: config/vpn-tunnels/"
     log_info "Next steps:"
     log_info "1. Review generated CloudFormation template"
     log_info "2. Deploy infrastructure in Commercial AWS"

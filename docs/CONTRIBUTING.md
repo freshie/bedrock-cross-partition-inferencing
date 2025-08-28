@@ -1,103 +1,241 @@
-# Contributing to Cross-Partition Bedrock Inference Proxy
+# Contributing to Cross-Partition Bedrock Inference
 
-🎉 Thank you for your interest in contributing! This project enables AWS GovCloud applications to access Commercial Bedrock models securely.
+Thank you for your interest in contributing to this project! This guide will help you get started.
 
-## 🚀 **Quick Start for Contributors**
+## 🚀 Getting Started
 
-1. **Fork** the repository
-2. **Clone** your fork locally
-3. **Create** a feature branch: `git checkout -b feature/amazing-feature`
-4. **Make** your changes
-5. **Test** your changes thoroughly
-6. **Commit** with clear messages: `git commit -m "✨ Add amazing feature"`
-7. **Push** to your branch: `git push origin feature/amazing-feature`
-8. **Open** a Pull Request
+### Prerequisites
+- AWS CLI configured with appropriate permissions
+- Basic understanding of AWS services (Lambda, API Gateway, CloudFormation)
+- Familiarity with serverless architectures
 
-## 🎯 **Ways to Contribute**
-
-### 🐛 **Bug Reports**
-- Use the [Bug Report template](.github/ISSUE_TEMPLATE/bug_report.md)
-- Include steps to reproduce
-- Provide CloudFormation stack outputs
-- Include relevant logs (sanitized)
-
-### ✨ **Feature Requests**
-- Use the [Feature Request template](.github/ISSUE_TEMPLATE/feature_request.md)
-- Explain the use case
-- Consider security implications
-- Suggest implementation approach
-
-### 📖 **Documentation**
-- Fix typos and improve clarity
-- Add usage examples
-- Update architecture diagrams
-- Translate to other languages
-
-### 🔧 **Code Contributions**
-- Follow existing code style
-- Add tests for new features
-- Update documentation
-- Ensure security best practices
-
-## 🛡️ **Security Guidelines**
-
-- **Never commit** real AWS credentials
-- **Sanitize** all logs and examples
-- **Follow** least-privilege principles
-- **Test** security controls thoroughly
-
-## 🧪 **Testing Requirements**
-
-Before submitting:
-- [ ] Run `./test-with-mock-key.sh` (mock testing)
-- [ ] Test CloudFormation deployment
-- [ ] Verify all documentation links
-- [ ] Check for sensitive data in commits
-
-## 📝 **Commit Message Guidelines**
-
-Use conventional commits with emojis:
-- `✨ feat: add new feature`
-- `🐛 fix: resolve bug`
-- `📖 docs: update documentation`
-- `🔧 refactor: improve code structure`
-- `🧪 test: add or update tests`
-- `🔒 security: security improvements`
-
-## 🏗️ **Development Setup**
-
+### Development Setup
 ```bash
-# Clone your fork
-git clone https://github.com/YOUR-USERNAME/bedrock-cross-partition-inferencing.git
-cd bedrock-cross-partition-inferencing
+# Clone the repository
+git clone https://github.com/freshie/bedrock-cross-partition-inferencing.git
+cd cross-partition-inferencing
 
-# Set up AWS profiles (see aws-profile-guide.md)
-aws configure --profile govcloud
-aws configure --profile commercial
+# Validate your environment
+./scripts/validate-setup.sh
 
-# Test the setup
-./validate-setup.sh
+# Deploy for testing
+./scripts/deploy-over-internet.sh
 ```
 
-## 🎯 **Priority Areas**
+## 🤝 How to Contribute
 
-We especially welcome contributions in:
-- 🔐 **Security enhancements**
-- 📊 **Monitoring and observability**
-- 🌐 **Multi-region support**
-- 🧪 **Additional test coverage**
-- 📖 **Documentation improvements**
+### Reporting Issues
+- Use GitHub Issues to report bugs or request features
+- Provide detailed information including:
+  - Steps to reproduce
+  - Expected vs actual behavior
+  - Environment details (AWS region, deployment type)
+  - Relevant logs or error messages
 
-## ❓ **Questions?**
+### Suggesting Enhancements
+- Check existing issues to avoid duplicates
+- Clearly describe the enhancement and its benefits
+- Consider backward compatibility
+- Provide implementation suggestions if possible
 
-- 💬 [Start a Discussion](https://github.com/freshie/bedrock-cross-partition-inferencing/discussions)
-- 📧 Create an issue with the "question" label
-- 📖 Check existing documentation
+### Code Contributions
 
-## 🙏 **Recognition**
+#### 1. Fork and Branch
+```bash
+# Fork the repository on GitHub
+# Clone your fork
+git clone https://github.com/YOUR_USERNAME/bedrock-cross-partition-inferencing.git
 
-All contributors will be recognized in our [Contributors section](README.md#contributors) and release notes.
+# Create a feature branch
+git checkout -b feature/your-feature-name
+```
+
+#### 2. Make Changes
+- Follow existing code style and patterns
+- Add tests for new functionality
+- Update documentation as needed
+- Ensure security best practices
+
+#### 3. Test Your Changes
+```bash
+# Run validation tests
+./scripts/validate-setup.sh
+
+# Test your specific changes
+./scripts/test-cross-partition.sh
+
+# Run security scan
+./scripts/security-scan.sh
+```
+
+#### 4. Submit Pull Request
+- Create a clear PR description
+- Reference related issues
+- Include testing instructions
+- Ensure CI checks pass
+
+## 📋 Development Guidelines
+
+### Code Style
+- **Python**: Follow PEP 8 guidelines
+- **Shell Scripts**: Use bash best practices
+- **CloudFormation**: Use consistent naming and structure
+- **Documentation**: Use clear, concise language
+
+### Security Requirements
+- Never commit credentials or sensitive data
+- Use AWS Secrets Manager for all secrets
+- Follow principle of least privilege for IAM roles
+- Scan for security vulnerabilities before submitting
+
+### Testing Standards
+- Add unit tests for new Lambda functions
+- Include integration tests for new features
+- Test both internet and VPN deployment paths
+- Validate error handling and edge cases
+
+## 🏗️ Project Structure
+
+### Key Directories
+- `infrastructure/` - CloudFormation templates
+- `lambda/` - Lambda function code
+- `scripts/` - Deployment and testing scripts
+- `docs/` - Documentation files
+- `tests/` - Test suites and utilities
+
+### Adding New Features
+
+#### New Lambda Function
+1. Create function in `lambda/` directory
+2. Add CloudFormation template in `infrastructure/`
+3. Create deployment script in `scripts/`
+4. Add tests in `tests/` directory
+5. Update documentation
+
+#### New Deployment Option
+1. Create CloudFormation template
+2. Add deployment script
+3. Create testing scripts
+4. Update documentation and guides
+5. Add to deployment options guide
+
+#### New Documentation
+1. Create in appropriate `docs/` subdirectory
+2. Update main README if needed
+3. Add to relevant guides and references
+4. Ensure consistent formatting
+
+## 🔧 Development Tools
+
+### Useful Scripts
+```bash
+# Validate project setup
+./scripts/validate-setup.sh
+
+# Run comprehensive tests
+./scripts/run-comprehensive-validation.sh
+
+# Security scanning
+./scripts/security-scan.sh
+
+# Performance testing
+./scripts/run-performance-comparison.sh
+```
+
+### Local Development
+```bash
+# Package Lambda functions locally
+./scripts/package-lambda-functions.sh
+
+# Test individual components
+./scripts/test-api-gateway-integration.sh
+./scripts/test-dual-routing-auth.sh
+```
+
+## 📚 Documentation Standards
+
+### README Updates
+- Keep main README concise and focused
+- Move detailed content to appropriate docs
+- Maintain consistent formatting
+- Update table of contents if needed
+
+### Code Documentation
+- Add clear comments for complex logic
+- Document function parameters and return values
+- Include usage examples
+- Explain security considerations
+
+### Architecture Documentation
+- Update architecture diagrams for significant changes
+- Document design decisions and trade-offs
+- Include performance and security implications
+- Maintain consistency with implementation
+
+## 🚨 Security Considerations
+
+### Sensitive Data
+- Never commit API keys, passwords, or credentials
+- Use placeholder values in examples
+- Scan git history for accidentally committed secrets
+- Use `.gitignore` patterns to prevent accidents
+
+### IAM Permissions
+- Follow principle of least privilege
+- Document required permissions
+- Test with minimal permission sets
+- Consider cross-account access patterns
+
+### Network Security
+- Validate VPN configurations
+- Test network isolation
+- Document security boundaries
+- Consider compliance requirements
+
+## 🔄 Release Process
+
+### Version Management
+- Follow semantic versioning (MAJOR.MINOR.PATCH)
+- Update VERSION file for releases
+- Tag releases in git
+- Update CHANGELOG.md
+
+### Testing Before Release
+```bash
+# Full system validation
+./scripts/run-comprehensive-validation.sh
+
+# Security validation
+./scripts/final-security-check.sh
+
+# Performance validation
+./scripts/run-performance-comparison.sh
+```
+
+### Documentation Updates
+- Update README if needed
+- Add release notes to CHANGELOG.md
+- Update version references
+- Verify all links work
+
+## 🤔 Questions?
+
+### Getting Help
+- Check existing documentation first
+- Search GitHub Issues for similar questions
+- Create a new issue with detailed information
+- Join discussions in existing issues
+
+### Community Guidelines
+- Be respectful and constructive
+- Help others when possible
+- Share knowledge and experiences
+- Follow the code of conduct
+
+## 📄 License
+
+By contributing to this project, you agree that your contributions will be licensed under the MIT License.
 
 ---
 
-**Happy Contributing!** 🚀
+Thank you for contributing to Cross-Partition Bedrock Inference! Your contributions help make secure AI access available to more organizations.

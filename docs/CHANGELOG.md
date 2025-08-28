@@ -215,7 +215,7 @@ Successfully implemented and tested Claude 4.1 (Opus) cross-partition inference 
 
 ### 📚 Documentation Updates
 - **BEDROCK_API_KEY_REFERENCE.md**: New reference guide for API key management
-- **bedrock-api-key-config.json**: Local configuration tracking for API keys
+- **config/bedrock/bedrock-api-key-config.json**: Local configuration tracking for API keys
 - **Enhanced Error Troubleshooting**: Better debugging guides and common issues
 
 ### 🔒 Security Enhancements
@@ -323,7 +323,7 @@ The first production-ready version of the Cross-Partition AI Inference System, e
 
 ### 🚀 Deployment
 
-- **Automated Deployment**: `./deploy-mvp.sh` for complete system setup
+- **Automated Deployment**: `./scripts/deploy-over-internet.sh` for internet-based setup, VPN deployment via dedicated scripts
 - **Manual Deployment**: Step-by-step infrastructure and Lambda deployment
 - **Validation Scripts**: Comprehensive testing suite for deployment verification
 

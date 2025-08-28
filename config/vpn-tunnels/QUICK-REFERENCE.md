@@ -9,7 +9,7 @@ AWS_PROFILE=govcloud ./scripts/test-vpn-tunnel-connectivity.sh --tunnel-only
 
 ### 2. Deploy Commercial AWS Infrastructure
 ```bash
-cd configs/vpn-tunnels/
+cd config/vpn-tunnels/
 # Edit deploy-commercial-vpn.sh to set COMMERCIAL_VPC_ID
 ./deploy-commercial-vpn.sh
 ```

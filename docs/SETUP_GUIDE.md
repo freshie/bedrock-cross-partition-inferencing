@@ -11,8 +11,8 @@ This guide walks you through setting up the Cross-Partition Bedrock Inference sy
 git clone https://github.com/freshie/bedrock-cross-partition-inferencing.git
 cd bedrock-cross-partition-inferencing
 
-# Deploy to your AWS environment
-./deploy-mvp.sh
+# Deploy to your AWS environment (internet routing)
+./scripts/deploy-over-internet.sh
 ```
 
 ### 2. Extract Configuration
@@ -20,7 +20,7 @@ cd bedrock-cross-partition-inferencing
 After deployment, extract your API endpoints automatically:
 
 ```bash
-# This creates config.sh with your actual endpoints
+# This creates config/config.sh with your actual endpoints
 ./scripts/get-config.sh
 ```
 
@@ -44,12 +44,12 @@ If you prefer to configure manually or need custom settings:
 ### 1. Copy Configuration Template
 
 ```bash
-cp config.example.sh config.sh
+cp config/config.example.sh config/config.sh
 ```
 
 ### 2. Update Configuration
 
-Edit `config.sh` with your values:
+Edit `config/config.sh` with your values:
 
 ```bash
 # Your API Gateway base URL (get from CloudFormation outputs)
@@ -96,7 +96,7 @@ aws cloudformation describe-stacks \
 
 ## 📁 Configuration Files
 
-### config.sh (Git-ignored)
+### config/config.sh (Git-ignored)
 Your actual configuration with real endpoints and credentials.
 
 ```bash
@@ -114,7 +114,7 @@ Template with placeholder values and documentation.
 
 ### Basic Connectivity Test
 ```bash
-source config.sh
+source config/config.sh
 curl -X GET "$API_BASE_URL/bedrock/models"
 ```
 
@@ -142,17 +142,17 @@ curl -X GET "$API_BASE_URL/bedrock/models"
 ./scripts/get-config.sh
 
 # Or copy template
-cp config.example.sh config.sh
-# Edit config.sh with your values
+cp config/config.example.sh config/config.sh
+# Edit config/config.sh with your values
 ```
 
 **Problem**: `API_BASE_URL not set`
 ```bash
-# Check your config.sh file
-cat config.sh
+# Check your config/config.sh file
+cat config/config.sh
 
 # Ensure you're sourcing it
-source config.sh
+source config/config.sh
 echo $API_BASE_URL
 ```
 
@@ -194,7 +194,7 @@ aws cloudformation describe-stacks \
 
 ## 🎯 Next Steps
 
-1. **Deploy**: Use `./deploy-mvp.sh` for quick deployment
+1. **Deploy**: Use `./scripts/deploy-over-internet.sh` for internet-based deployment or `./scripts/deploy-complete-vpn-infrastructure.sh` for VPN-based deployment
 2. **Configure**: Run `./scripts/get-config.sh` to extract endpoints
 3. **Secure**: Set up real Bedrock API keys in Secrets Manager
 4. **Test**: Run `./test-invoke-model.sh` to verify functionality

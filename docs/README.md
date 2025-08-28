@@ -59,7 +59,7 @@ This directory contains all user-facing documentation for the Cross-Partition Be
 
 ## 🤝 **Contributing to Documentation**
 
-See the main [Contributing Guide](../CONTRIBUTING.md) for:
+See the main [Contributing Guide](CONTRIBUTING.md) for:
 - Documentation style guidelines
 - How to add new documentation
 - Review process for documentation changes

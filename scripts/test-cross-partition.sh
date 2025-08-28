@@ -24,7 +24,7 @@ echo ""
 # Check if stack exists
 if ! aws cloudformation describe-stacks --stack-name $STACK_NAME --profile $PROFILE --region $REGION > /dev/null 2>&1; then
     echo -e "${RED}❌ Error: Stack '$STACK_NAME' not found${NC}"
-    echo "Please deploy the MVP first using ./deploy-mvp.sh"
+    echo "Please deploy the infrastructure first using ./scripts/deploy-over-internet.sh or ./scripts/deploy-complete-vpn-infrastructure.sh"
     exit 1
 fi
 
