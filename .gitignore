@@ -75,6 +75,7 @@ test_*.json
 test-results-*.json
 response*.json
 final_test.json
+tests/results/
 
 # Build Artifacts
 build/
