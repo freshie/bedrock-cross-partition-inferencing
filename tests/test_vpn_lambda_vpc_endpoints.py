@@ -56,8 +56,10 @@ class TestVPCEndpointClients(unittest.TestCase):
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
         
-        vpc_clients = VPCEndpointClients()
-        result = vpc_clients.get_secrets_client()
+        # Mock health check to return healthy
+        with patch.object(VPCEndpointClients, 'check_vpc_endpoint_health', return_value=True):
+            vpc_clients = VPCEndpointClients()
+            result = vpc_clients.get_secrets_client()
         
         mock_boto_client.assert_called_with(
             'secretsmanager', 
@@ -84,8 +86,10 @@ class TestVPCEndpointClients(unittest.TestCase):
         mock_resource = Mock()
         mock_boto_resource.return_value = mock_resource
         
-        vpc_clients = VPCEndpointClients()
-        result = vpc_clients.get_dynamodb_resource()
+        # Mock health check to return healthy
+        with patch.object(VPCEndpointClients, 'check_vpc_endpoint_health', return_value=True):
+            vpc_clients = VPCEndpointClients()
+            result = vpc_clients.get_dynamodb_resource()
         
         mock_boto_resource.assert_called_with(
             'dynamodb', 
@@ -108,7 +112,7 @@ class TestVPCEndpointClients(unittest.TestCase):
         )
         self.assertEqual(result, mock_client)
     
-    @patch('dual_routing_vpn_lambda.socket.socket')
+    @patch('socket.socket')
     def test_check_vpc_endpoint_health_success(self, mock_socket):
         """Test successful VPC endpoint health check"""
         # Mock successful socket connection
@@ -128,7 +132,7 @@ class TestVPCEndpointClients(unittest.TestCase):
         self.assertIn('last_check', vpc_clients._health_status['test-endpoint'])
         self.assertIn('endpoint_url', vpc_clients._health_status['test-endpoint'])
     
-    @patch('dual_routing_vpn_lambda.socket.socket')
+    @patch('socket.socket')
     def test_check_vpc_endpoint_health_failure(self, mock_socket):
         """Test failed VPC endpoint health check"""
         # Mock failed socket connection
@@ -146,7 +150,7 @@ class TestVPCEndpointClients(unittest.TestCase):
         self.assertIn('test-endpoint', vpc_clients._health_status)
         self.assertFalse(vpc_clients._health_status['test-endpoint']['healthy'])
     
-    @patch('dual_routing_vpn_lambda.socket.socket')
+    @patch('socket.socket')
     def test_check_vpc_endpoint_health_exception(self, mock_socket):
         """Test VPC endpoint health check with exception"""
         # Mock socket exception
@@ -173,7 +177,7 @@ class TestVPCEndpointClients(unittest.TestCase):
         self.assertTrue(vpc_clients._health_status['test-endpoint']['healthy'])
         self.assertEqual(vpc_clients._health_status['test-endpoint']['endpoint_url'], 'default')
     
-    @patch('dual_routing_vpn_lambda.socket.socket')
+    @patch('socket.socket')
     def test_validate_vpn_connectivity_success(self, mock_socket):
         """Test successful VPN connectivity validation"""
         # Mock successful socket connection
@@ -190,7 +194,7 @@ class TestVPCEndpointClients(unittest.TestCase):
         self.assertIn('vpn_tunnel', vpc_clients._health_status)
         self.assertTrue(vpc_clients._health_status['vpn_tunnel']['healthy'])
     
-    @patch('dual_routing_vpn_lambda.socket.socket')
+    @patch('socket.socket')
     def test_validate_vpn_connectivity_failure(self, mock_socket):
         """Test failed VPN connectivity validation"""
         # Mock failed socket connection
@@ -238,7 +242,7 @@ class TestVPCEndpointClients(unittest.TestCase):
         # Verify it's a copy, not the original
         self.assertIsNot(result, vpc_clients._health_status)
     
-    @patch('dual_routing_vpn_lambda.socket.socket')
+    @patch('socket.socket')
     def test_health_check_with_custom_port(self, mock_socket):
         """Test health check with custom port in URL"""
         mock_sock = Mock()
@@ -255,7 +259,7 @@ class TestVPCEndpointClients(unittest.TestCase):
         # Verify socket was called with custom port
         mock_sock.connect_ex.assert_called_with(('vpce-test.us-gov-west-1.vpce.amazonaws.com', 8443))
     
-    @patch('dual_routing_vpn_lambda.socket.socket')
+    @patch('socket.socket')
     def test_health_check_timeout_handling(self, mock_socket):
         """Test health check with socket timeout"""
         mock_sock = Mock()
@@ -271,7 +275,7 @@ class TestVPCEndpointClients(unittest.TestCase):
         mock_sock.settimeout.assert_called_with(2)
         mock_sock.close.assert_called_once()
     
-    @patch('dual_routing_vpn_lambda.socket.socket')
+    @patch('socket.socket')
     def test_multiple_health_checks(self, mock_socket):
         """Test multiple health checks update status correctly"""
         mock_sock = Mock()
@@ -319,7 +323,7 @@ class TestVPCEndpointIntegration(unittest.TestCase):
         VPCEndpointClients._instance = None
     
     @patch('dual_routing_vpn_lambda.boto3.client')
-    @patch('dual_routing_vpn_lambda.socket.socket')
+    @patch('socket.socket')
     def test_secrets_client_with_health_check(self, mock_socket, mock_boto_client):
         """Test secrets client creation with health check integration"""
         # Mock successful health check
@@ -347,7 +351,7 @@ class TestVPCEndpointIntegration(unittest.TestCase):
         self.assertTrue(health_status['secrets']['healthy'])
     
     @patch('dual_routing_vpn_lambda.boto3.client')
-    @patch('dual_routing_vpn_lambda.socket.socket')
+    @patch('socket.socket')
     def test_secrets_client_with_failed_health_check(self, mock_socket, mock_boto_client):
         """Test secrets client fallback when health check fails"""
         # Mock failed health check

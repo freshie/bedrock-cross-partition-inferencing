@@ -16,8 +16,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'lambda'))
 # Import the modules to test
 from dual_routing_internet_lambda import (
     lambda_handler, detect_routing_method, parse_request,
-    get_commercial_credentials, forward_to_bedrock,
-    create_bedrock_session, get_inference_profile_id
+    get_bedrock_bearer_token, make_bedrock_request,
+    get_inference_profile_id
 )
 from dual_routing_error_handler import (
     NetworkError, AuthenticationError, ValidationError, ServiceError
@@ -131,53 +131,41 @@ class TestInternetLambdaFunction(unittest.TestCase):
         self.assertIn('Invalid request format', str(context.exception)) 
    
     @patch('dual_routing_internet_lambda.secrets_client')
-    def test_get_commercial_credentials_success(self, mock_secrets_client):
-        """Test successful credential retrieval"""
+    def test_get_bedrock_bearer_token_success(self, mock_secrets_client):
+        """Test successful bearer token retrieval"""
         # Mock successful response
         mock_response = {
             'SecretString': json.dumps({
-                'bedrock_api_key': 'test-api-key-12345',
+                'bedrock_bearer_token': 'test-bearer-token-12345',
                 'region': 'us-east-1'
             })
         }
         mock_secrets_client.get_secret_value.return_value = mock_response
         
-        result = get_commercial_credentials()
+        result = get_bedrock_bearer_token()
         
-        self.assertEqual(result['bedrock_api_key'], 'test-api-key-12345')
-        self.assertEqual(result['region'], 'us-east-1')
+        self.assertEqual(result, 'test-bearer-token-12345')
         mock_secrets_client.get_secret_value.assert_called_once()
     
-    @patch('dual_routing_internet_lambda.secrets_client')
-    def test_get_commercial_credentials_aws_format(self, mock_secrets_client):
-        """Test credential retrieval with AWS credentials format"""
-        # Mock AWS credentials format
-        mock_response = {
-            'SecretString': json.dumps({
-                'aws_access_key_id': 'AKIA12345',
-                'aws_secret_access_key': 'secret12345',
-                'region': 'us-east-1'
-            })
-        }
-        mock_secrets_client.get_secret_value.return_value = mock_response
+    @patch.dict(os.environ, {'AWS_BEARER_TOKEN_BEDROCK': 'env-bearer-token-123'})
+    def test_get_bedrock_bearer_token_from_env(self):
+        """Test bearer token retrieval from environment variable"""
+        result = get_bedrock_bearer_token()
         
-        result = get_commercial_credentials()
-        
-        self.assertEqual(result['aws_access_key_id'], 'AKIA12345')
-        self.assertEqual(result['aws_secret_access_key'], 'secret12345')
+        self.assertEqual(result, 'env-bearer-token-123')
     
     @patch('dual_routing_internet_lambda.secrets_client')
-    def test_get_commercial_credentials_failure(self, mock_secrets_client):
-        """Test credential retrieval failure"""
+    def test_get_bedrock_bearer_token_failure(self, mock_secrets_client):
+        """Test bearer token retrieval failure"""
         from botocore.exceptions import ClientError
         mock_secrets_client.get_secret_value.side_effect = ClientError(
             {'Error': {'Code': 'ResourceNotFoundException'}}, 'GetSecretValue'
         )
         
         with self.assertRaises(Exception) as context:
-            get_commercial_credentials()
+            get_bedrock_bearer_token()
         
-        self.assertIn('Unable to retrieve commercial credentials', str(context.exception))
+        self.assertIn('Unable to retrieve Bedrock bearer token', str(context.exception))
     
     def test_create_bedrock_session_success(self):
         """Test successful Bedrock session creation"""
@@ -395,8 +383,8 @@ class TestInternetLambdaFunction(unittest.TestCase):
         body = json.loads(result['body'])
         self.assertEqual(body['error']['code'], 'NETWORK_ERROR')
         self.assertIn('Network error occurred', body['error']['message'])
-cla
-ss TestInternetLambdaAdvancedFeatures(unittest.TestCase):
+
+class TestInternetLambdaAdvancedFeatures(unittest.TestCase):
     """Advanced test cases for Internet Lambda function features"""
     
     def setUp(self):

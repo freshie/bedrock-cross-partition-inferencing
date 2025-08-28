@@ -16,8 +16,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'lambda'))
 # Import the modules to test
 from dual_routing_vpn_lambda import (
     lambda_handler, detect_routing_method, parse_request,
-    get_commercial_credentials_vpc, forward_to_bedrock_vpn,
-    VPCEndpointClients, get_inference_profile_id
+    get_bedrock_bearer_token_vpc, forward_to_bedrock_vpn,
+    get_inference_profile_id, VPCEndpointClients
 )
 from dual_routing_error_handler import (
     VPNError, NetworkError, AuthenticationError, ValidationError
@@ -146,8 +146,8 @@ class TestVPNLambdaFunction(unittest.TestCase):
         self.assertIn('Invalid request format', str(context.exception))
     
     @patch('dual_routing_vpn_lambda.vpc_clients')
-    def test_get_commercial_credentials_vpc_success(self, mock_vpc_clients):
-        """Test successful credential retrieval via VPC endpoint"""
+    def test_get_bedrock_bearer_token_vpc_success(self, mock_vpc_clients):
+        """Test successful bearer token retrieval via VPC endpoint"""
         # Mock secrets client
         mock_secrets_client = Mock()
         mock_vpc_clients.get_secrets_client.return_value = mock_secrets_client
@@ -161,15 +161,15 @@ class TestVPNLambdaFunction(unittest.TestCase):
         }
         mock_secrets_client.get_secret_value.return_value = mock_response
         
-        result = get_commercial_credentials_vpc()
+        result = get_bedrock_bearer_token_vpc()
         
         self.assertEqual(result['bedrock_api_key'], 'test-api-key-12345')
         self.assertEqual(result['region'], 'us-east-1')
         mock_secrets_client.get_secret_value.assert_called_once()
     
     @patch('dual_routing_vpn_lambda.vpc_clients')
-    def test_get_commercial_credentials_vpc_failure(self, mock_vpc_clients):
-        """Test credential retrieval failure via VPC endpoint"""
+    def test_get_bedrock_bearer_token_vpc_failure(self, mock_vpc_clients):
+        """Test bearer token retrieval failure via VPC endpoint"""
         # Mock secrets client
         mock_secrets_client = Mock()
         mock_vpc_clients.get_secrets_client.return_value = mock_secrets_client
@@ -181,7 +181,7 @@ class TestVPNLambdaFunction(unittest.TestCase):
         )
         
         with self.assertRaises(Exception) as context:
-            get_commercial_credentials_vpc()
+            get_bedrock_bearer_token_vpc()
         
         self.assertIn('Unable to retrieve commercial credentials', str(context.exception))
     

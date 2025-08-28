@@ -215,10 +215,10 @@ log_info "Running VPN Lambda unit tests with coverage..."
 cd "$PROJECT_ROOT"
 
 # Run the test runner
-if [[ "$VERBOSE" == "true" ]]; then
-    VERBOSITY_FLAG="--verbose"
-else
+if [[ "$VERBOSE" == "false" ]]; then
     VERBOSITY_FLAG="--quiet"
+else
+    VERBOSITY_FLAG=""
 fi
 
 HTML_FLAG=""

@@ -55,13 +55,13 @@ Options:
 
 Examples:
     # Test with all API keys
-    $0 --api-url https://abcd123456.execute-api.us-gov-west-1.amazonaws.com/prod \\
+    $0 --api-url https://YOUR-API-ID.execute-api.us-gov-west-1.amazonaws.com/prod \\
        --internet-key internet-key-here \\
        --vpn-key vpn-key-here \\
        --admin-key admin-key-here
     
     # Test with admin key only
-    $0 --api-url https://abcd123456.execute-api.us-gov-west-1.amazonaws.com/prod \\
+    $0 --api-url https://YOUR-API-ID.execute-api.us-gov-west-1.amazonaws.com/prod \\
        --admin-key admin-key-here
 
 EOF
